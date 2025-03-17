@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg rounded-xl relative overflow-hidden;
+  }
+  
+  .glass-card::before {
+    @apply content-[''] absolute top-0 left-0 w-full h-full bg-gradient-card opacity-50 pointer-events-none;
+  }
+  
+  .ai-container {
+    @apply relative shadow-glow bg-white/90 backdrop-blur-md rounded-xl border border-purple-200;
+  }
+
+  .gradient-bg {
+    @apply bg-gradient-primary text-white;
+  }
+  
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 hover:shadow-md;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary-dark text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 hover:shadow-md;
+  }
+  
+  .rating-indicator {
+    @apply h-2.5 rounded-full transition-all duration-300;
+  }
+  
+  .rating-poor {
+    @apply bg-rating-poor;
+  }
+  
+  .rating-fair {
+    @apply bg-rating-fair;
+  }
+  
+  .rating-good {
+    @apply bg-rating-good;
+  }
+  
+  .rating-great {
+    @apply bg-rating-great;
+  }
+  
+  .rating-excellent {
+    @apply bg-rating-excellent;
+  }
+} 
