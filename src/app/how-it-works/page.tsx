@@ -18,11 +18,11 @@ export default function HowItWorks() {
   useEffect(() => {
     // Get consistent images for each step to ensure they don't change on rerenders
     setImageUrls({
-      banner: getDailyUnsplashImage('decision making process brainstorming teamwork', 1920, 600),
-      decisionType: getConsistentUnsplashImage('decision making choice options selection', 800, 600),
-      factorAnalysis: getConsistentUnsplashImage('analysis strategy priority planning', 800, 600),
-      optionsAnalysis: getConsistentUnsplashImage('comparison data analytics visualization', 800, 600),
-      recommendation: getConsistentUnsplashImage('solution recommendation success achievement', 800, 600)
+      banner: getDailyUnsplashImage(),
+      decisionType: getConsistentUnsplashImage('decision making choice options selection'),
+      factorAnalysis: getConsistentUnsplashImage('analysis strategy priority planning'),
+      optionsAnalysis: getConsistentUnsplashImage('comparison data analytics visualization'),
+      recommendation: getConsistentUnsplashImage('solution recommendation success achievement')
     });
   }, []);
 
