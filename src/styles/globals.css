@@ -8,6 +8,7 @@
   }
   body {
     @apply bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 min-h-screen;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -58,5 +59,42 @@
   
   .rating-excellent {
     @apply bg-rating-excellent;
+  }
+  
+  /* Mobile-specific styles */
+  .mobile-bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-white shadow-top z-40 border-t border-gray-200;
+  }
+  
+  .mobile-card {
+    @apply rounded-xl bg-white shadow-sm p-4 border border-gray-100;
+  }
+  
+  .mobile-input {
+    @apply text-base py-3 px-4 rounded-xl;
+  }
+  
+  .mobile-button {
+    @apply rounded-xl py-3 w-full flex justify-center items-center font-medium;
+  }
+  
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+  
+  /* Touch-friendly button styles */
+  .touch-button {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+  
+  /* Safe bottom area padding for modern mobile browsers */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 } 

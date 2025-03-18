@@ -37,6 +37,10 @@ module.exports = {
       },
       boxShadow: {
         'glow': '0 0 15px rgba(168, 85, 247, 0.5)',
+        'top': '0 -2px 10px rgba(0, 0, 0, 0.1)',
+      },
+      screens: {
+        'xs': '375px',
       },
     },
   },
