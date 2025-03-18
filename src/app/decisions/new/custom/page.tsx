@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useNotification } from '@/components/NotificationContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { v4 as uuid } from 'uuid';
 
 // Type definitions
 type Factor = {
@@ -20,15 +21,22 @@ type Rating = {
 type Option = {
   id: string;
   name: string;
-  ratings: Rating;
-  totalScore?: number;
+  description: string;
+  ratings?: { [key: string]: number };
+  score?: number;
   percentageScore?: number;
+};
+
+type Criterion = {
+  id: string;
+  name: string;
+  description: string;
+  weight: number;
 };
 
 // Default factors for custom decisions
 const defaultFactors: Factor[] = [
-  { id: 'factor1', name: 'Factor 1', weight: 3, description: 'Description for factor 1' },
-  { id: 'factor2', name: 'Factor 2', weight: 3, description: 'Description for factor 2' },
+  { id: 'factor1', name: '', weight: 3, description: '' },
 ];
 
 // Add a new ValidationMessage component for inline validation messages
@@ -43,22 +51,67 @@ const ValidationMessage = ({ message }: { message: string }) => (
   </div>
 );
 
+// Create a small AI button for individual fields
+const FieldAIButton = ({ onClick, isLoading = false, tooltip = "Suggest with AI", size = "sm", showLabel = false, className = "" }: { 
+  onClick: () => void, 
+  isLoading?: boolean,
+  tooltip?: string,
+  size?: "sm" | "md",
+  showLabel?: boolean,
+  className?: string
+}) => (
+  <button
+    className={`${size === "sm" ? (showLabel ? "px-2 py-1.5" : "p-1.5") : (showLabel ? "px-3 py-2" : "p-2")} 
+      bg-indigo-600 hover:bg-indigo-700 text-white rounded-md flex items-center justify-center transition-colors group relative
+      ${showLabel ? "min-w-fit flex-shrink-0" : ""} ${className}`}
+    onClick={onClick}
+    disabled={isLoading}
+    aria-label={tooltip}
+    title={tooltip}
+  >
+    {isLoading ? (
+      <>
+        <svg className={`animate-spin ${size === "sm" ? "h-4 w-4" : "h-5 w-5"} ${showLabel ? "mr-1.5" : ""} flex-shrink-0 text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        {showLabel && <span className="text-xs sm:text-sm truncate">Loading...</span>}
+      </>
+    ) : (
+      <>
+        <svg className={`${size === "sm" ? "h-4 w-4" : "h-5 w-5"} ${showLabel ? "mr-1.5" : ""} flex-shrink-0 text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        {showLabel && <span className="text-xs sm:text-sm truncate whitespace-nowrap">{tooltip}</span>}
+        {!showLabel && (
+          <span className="absolute -top-10 left-1/2 -translate-x-1/2 w-auto p-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200 z-10">
+            {tooltip}
+          </span>
+        )}
+      </>
+    )}
+  </button>
+);
+
 export default function CustomDecision() {
-  const [step, setStep] = useState(1);
-  const [decisionTitle, setDecisionTitle] = useState('');
-  const [decisionDescription, setDecisionDescription] = useState('');
+  const [decisionTitle, setDecisionTitle] = useState<string>("");
+  const [decisionDescription, setDecisionDescription] = useState<string>("");
   const [factors, setFactors] = useState<Factor[]>(defaultFactors);
   const [options, setOptions] = useState<Option[]>([
-    { id: 'option1', name: '', ratings: {} },
-    { id: 'option2', name: '', ratings: {} },
+    { id: uuid(), name: "", description: "", ratings: {} },
+    { id: uuid(), name: "", description: "", ratings: {} }
   ]);
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [criteria, setCriteria] = useState<Criterion[]>([{ id: uuid(), name: "", description: "", weight: 1 }]);
+  const [ratings, setRatings] = useState<{ [key: string]: number }>({});
+  const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
   const [aiExplanation, setAiExplanation] = useState('');
   const [aiInsights, setAiInsights] = useState<any>(null);
-  const [currentAiOperation, setCurrentAiOperation] = useState<string>('');
+  const [currentAiOperation, setCurrentAiOperation] = useState<string>("");
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const { showNotification } = useNotification();
   const { user, session } = useAuth();
+  const [activeStep, setActiveStep] = useState<number>(0);
+  const [activeRatingCell, setActiveRatingCell] = useState<{optionId: string; factorId: string} | null>(null);
   
   // Check for suggestion from previous page
   useEffect(() => {
@@ -482,8 +535,7 @@ export default function CustomDecision() {
   
   // Add a new option
   const handleAddOption = () => {
-    const newId = `option${options.length + 1}`;
-    setOptions([...options, { id: newId, name: '', ratings: {} }]);
+    setOptions([...options, { id: uuid(), name: '', description: '', ratings: {} }]);
   };
   
   // Remove an option
@@ -559,17 +611,17 @@ export default function CustomDecision() {
     setFormErrors({});
     
     // Step-specific validation
-    if (step === 1 && !decisionTitle) {
+    if (activeStep === 1 && !decisionTitle) {
       setFormErrors({decisionTitle: 'Please provide a decision title before proceeding'});
       return;
     }
     
-    if (step === 2 && (factors.length === 0 || factors.some(f => !f.name))) {
+    if (activeStep === 2 && (factors.length === 0 || factors.some(f => !f.name))) {
       setFormErrors({factorNames: 'Please ensure all factors have names before proceeding'});
       return;
     }
     
-    if (step === 3) {
+    if (activeStep === 3) {
       if (options.some(o => !o.name)) {
         setFormErrors({optionNames: 'Please name all options before proceeding'});
         return;
@@ -587,17 +639,17 @@ export default function CustomDecision() {
       showNotification('Using decision title as description', 'info');
     }
     
-    setStep(step + 1);
+    setActiveStep(activeStep + 1);
   };
   
-  const goToPrevStep = () => setStep(step - 1);
+  const goToPrevStep = () => setActiveStep(activeStep - 1);
   
   // Call AI analysis when we have sufficient data
   useEffect(() => {
-    if (step === 3 && options.every(option => option.name && Object.keys(option.ratings).length > 0)) {
+    if (activeStep === 3 && options.every(option => option.name && option.ratings && Object.keys(option.ratings).length > 0)) {
       getAiAnalysis();
     }
-  }, [step, options]);
+  }, [activeStep, options]);
   
   // Process scores when displaying results
   const scoredOptions = calculateScores().sort((a, b) => 
@@ -608,10 +660,10 @@ export default function CustomDecision() {
   
   // Get explanation for top option when showing results
   useEffect(() => {
-    if (step === 4 && topOption && !aiExplanation) {
+    if (activeStep === 4 && topOption && !aiExplanation) {
       getAiExplanation(topOption);
     }
-  }, [step, topOption]);
+  }, [activeStep, topOption]);
   
   // AI assistant button with specific text based on operation
   const AIButton = ({ onClick, operation, label, disabled = false, className = '', errorMessage = '' }: { 
@@ -668,7 +720,7 @@ export default function CustomDecision() {
     setFormErrors({}); // Clear any existing form errors
     
     if (stepNumber === 1 || isStepAccessible(stepNumber)) {
-      setStep(stepNumber);
+      setActiveStep(stepNumber);
     } else {
       if (stepNumber === 2 && !decisionTitle) {
         setFormErrors({decisionTitle: 'Please provide a decision title first'});
@@ -898,6 +950,237 @@ export default function CustomDecision() {
     }
   };
   
+  // Request AI to suggest a single criterion name
+  const getAiSuggestedCriterionName = async (factorId: string) => {
+    if (!decisionTitle) {
+      setFormErrors(prev => ({...prev, decisionTitle: 'Please provide a decision title first'}));
+      showNotification('Please provide a decision title before getting AI suggestions', 'warning');
+      return;
+    }
+    
+    setIsLoadingAI(true);
+    setCurrentAiOperation(`criterion-${factorId}`);
+    
+    try {
+      const response = await fetch('/api/ai/factor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          decisionType: 'custom',
+          description: decisionDescription || decisionTitle,
+          existingFactors: factors.map(f => f.name).filter(name => name),
+          title: decisionTitle,
+          fieldOnly: true
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get AI criterion suggestion');
+      }
+      
+      const data = await response.json();
+      
+      if (data.factor) {
+        // Update both name and description of the specified factor
+        if (data.factor.name) {
+          handleFactorNameChange(factorId, data.factor.name);
+        }
+        if (data.factor.description) {
+          handleFactorDescriptionChange(factorId, data.factor.description);
+        }
+        if (data.factor.weight) {
+          handleWeightChange(factorId, data.factor.weight);
+        }
+        showNotification('Criterion updated with AI suggestions', 'success');
+      }
+    } catch (error) {
+      console.error('Error getting AI criterion suggestion:', error);
+      showNotification('Could not generate criterion. Please add manually.', 'error');
+    } finally {
+      setIsLoadingAI(false);
+      setCurrentAiOperation('');
+    }
+  };
+
+  // Request AI to suggest a rating for a specific factor and option
+  const getAiSuggestedRating = async (optionId: string, factorId: string) => {
+    if (!decisionTitle || !factors.find(f => f.id === factorId)?.name || !options.find(o => o.id === optionId)?.name) {
+      showNotification('Please provide names for the option and criterion first', 'warning');
+      return;
+    }
+    
+    setIsLoadingAI(true);
+    setCurrentAiOperation(`rating-${optionId}-${factorId}`);
+    
+    try {
+      const factor = factors.find(f => f.id === factorId);
+      const option = options.find(o => o.id === optionId);
+      
+      if (!factor || !option) return;
+      
+      const response = await fetch('/api/ai/rating', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: decisionTitle,
+          description: decisionDescription || decisionTitle,
+          factor: { id: factor.id, name: factor.name, description: factor.description },
+          option: { id: option.id, name: option.name }
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get AI rating suggestion');
+      }
+      
+      const data = await response.json();
+      
+      if (data.rating && data.rating >= 1 && data.rating <= 5) {
+        handleRatingChange(optionId, factorId, data.rating);
+      }
+    } catch (error) {
+      console.error('Error getting AI rating suggestion:', error);
+      showNotification('Could not generate rating. Please rate manually.', 'error');
+    } finally {
+      setIsLoadingAI(false);
+      setCurrentAiOperation('');
+    }
+  };
+  
+  // Create AI-specific button function to handle option suggestions with unique ID
+  const getAiSuggestedOptionWithId = async (optionId: string) => {
+    if (factors.some(f => !f.name)) {
+      setFormErrors(prev => ({...prev, factorNames: 'Please name all criteria before generating AI options'}));
+      showNotification('Please provide names for all criteria before generating AI options', 'warning');
+      return;
+    }
+    
+    setIsLoadingAI(true);
+    setCurrentAiOperation(`option-${optionId}`);
+    
+    try {
+      const response = await fetch('/api/ai/option', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: decisionTitle,
+          description: decisionDescription || decisionTitle,
+          factors,
+          existingOptions: options.map(o => o.name).filter(name => name)
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get AI option suggestion');
+      }
+      
+      const data = await response.json();
+      
+      if (data.optionName) {
+        // Update the specific option name
+        handleOptionNameChange(optionId, data.optionName);
+        showNotification(`Updated option: ${data.optionName}`, 'success');
+      }
+    } catch (error) {
+      console.error('Error getting AI option suggestion:', error);
+      showNotification('Could not generate option. Please add one manually.', 'error');
+    } finally {
+      setIsLoadingAI(false);
+      setCurrentAiOperation('');
+    }
+  };
+  
+  // Request AI to suggest ratings for a specific option
+  const getAiSuggestedOptionRatings = async (optionId: string) => {
+    const option = options.find(o => o.id === optionId);
+    if (!option) return;
+    
+    if (!option.name) {
+      showNotification('Please name the option before getting AI ratings', 'warning');
+      return;
+    }
+    
+    if (factors.some(f => !f.name)) {
+      showNotification('Please name all criteria before getting AI ratings', 'warning');
+      return;
+    }
+    
+    setIsLoadingAI(true);
+    setCurrentAiOperation(`ratings-${optionId}`);
+    
+    try {
+      const response = await fetch('/api/ai/option-ratings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: decisionTitle,
+          description: decisionDescription || decisionTitle,
+          factors,
+          option: { id: option.id, name: option.name }
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get AI ratings for option');
+      }
+      
+      const data = await response.json();
+      
+      if (data.ratings) {
+        // Update the ratings for this option
+        const updatedOption = { ...option, ratings: data.ratings };
+        setOptions(options.map(o => o.id === optionId ? updatedOption : o));
+        showNotification(`Updated ratings for "${option.name}"`, 'success');
+      }
+    } catch (error) {
+      console.error('Error getting AI ratings for option:', error);
+      showNotification('Could not generate ratings. Please rate manually.', 'error');
+    } finally {
+      setIsLoadingAI(false);
+      setCurrentAiOperation('');
+    }
+  };
+  
+  // Fix the handleRatingClick and handleRatingSelect functions
+  const handleRatingClick = (optionId: string, factorId: string) => {
+    setActiveRatingCell({optionId, factorId});
+  };
+  
+  const handleRatingSelect = (optionId: string, factorId: string, value: number) => {
+    // Update the ratings for this option
+    const updatedOptions = options.map(opt => {
+      if (opt.id === optionId) {
+        return {
+          ...opt,
+          ratings: {
+            ...(opt.ratings || {}),
+            [factorId]: value
+          }
+        };
+      }
+      return opt;
+    });
+    setOptions(updatedOptions);
+    setActiveRatingCell(null);
+  };
+  
+  // Simplify check for option ratings
+  const hasCompleteRatings = (option: Option) => {
+    return option.ratings && 
+           factors.every(factor => 
+             typeof option.ratings![factor.id] === 'number' && 
+             option.ratings![factor.id] > 0
+           );
+  };
+  
   return (
     <div className="bg-white min-h-screen">
       {/* Header with branding */}
@@ -988,13 +1271,13 @@ export default function CustomDecision() {
               {decisionTitle || 'Custom Decision'}
             </h2>
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>1</span>
-              <div className={`w-6 sm:w-12 h-1 ${step >= 2 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>2</span>
-              <div className={`w-6 sm:w-12 h-1 ${step >= 3 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>3</span>
-              <div className={`w-6 sm:w-12 h-1 ${step >= 4 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${step >= 4 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>4</span>
+              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${activeStep >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>1</span>
+              <div className={`w-6 sm:w-12 h-1 ${activeStep >= 2 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
+              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${activeStep >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>2</span>
+              <div className={`w-6 sm:w-12 h-1 ${activeStep >= 3 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
+              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${activeStep >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>3</span>
+              <div className={`w-6 sm:w-12 h-1 ${activeStep >= 4 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
+              <span className={`inline-flex justify-center items-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${activeStep >= 4 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'} font-semibold`}>4</span>
             </div>
           </div>
         </div>
@@ -1007,11 +1290,15 @@ export default function CustomDecision() {
           <div className="flex mb-8 flex-wrap text-sm">
             <button 
               onClick={() => navigateToStep(1)}
-              className={`flex-1 min-w-[80px] text-center py-3 ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center rounded-l-md`}
+              className={`flex-1 min-w-[80px] text-center py-3 ${activeStep >= 1 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center rounded-l-md`}
             >
-              <span className="truncate font-medium">1. Define</span>
-              {step > 1 && (
-                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Describe Decision">
+                <title>Describe Decision</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <span className="hidden md:inline truncate font-medium">1. Describe Decision</span>
+              {activeStep > 1 && (
+                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               )}
@@ -1019,11 +1306,15 @@ export default function CustomDecision() {
             
             <button 
               onClick={() => navigateToStep(2)}
-              className={`flex-1 min-w-[80px] text-center py-3 ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border-t border-b border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(2) ? '' : 'opacity-70'} flex items-center justify-center`}
+              className={`flex-1 min-w-[80px] text-center py-3 ${activeStep >= 2 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border-t border-b border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(2) ? '' : 'opacity-70'} flex items-center justify-center`}
             >
-              <span className="truncate font-medium">2. Factors</span>
-              {step > 2 && (
-                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Add Important Criteria">
+                <title>Add Important Criteria</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="hidden md:inline truncate font-medium">2. Add Important Criteria</span>
+              {activeStep > 2 && (
+                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               )}
@@ -1031,11 +1322,15 @@ export default function CustomDecision() {
             
             <button 
               onClick={() => navigateToStep(3)}
-              className={`flex-1 min-w-[80px] text-center py-3 ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border-t border-b border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(3) ? '' : 'opacity-70'} flex items-center justify-center`}
+              className={`flex-1 min-w-[80px] text-center py-3 ${activeStep >= 3 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border-t border-b border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(3) ? '' : 'opacity-70'} flex items-center justify-center`}
             >
-              <span className="truncate font-medium">3. Options</span>
-              {step > 3 && (
-                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Rate Your Choices">
+                <title>Rate Your Choices</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="hidden md:inline truncate font-medium">3. Rate Your Choices</span>
+              {activeStep > 3 && (
+                <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               )}
@@ -1043,18 +1338,22 @@ export default function CustomDecision() {
             
             <button 
               onClick={() => navigateToStep(4)}
-              className={`flex-1 min-w-[80px] text-center py-3 ${step >= 4 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(4) ? '' : 'opacity-70'} flex items-center justify-center rounded-r-md`}
+              className={`flex-1 min-w-[80px] text-center py-3 ${activeStep >= 4 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer ${isStepAccessible(4) ? '' : 'opacity-70'} flex items-center justify-center rounded-r-md`}
             >
-              <span className="truncate font-medium">4. Results</span>
+              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Get Recommendation">
+                <title>Get Recommendation</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span className="hidden md:inline truncate font-medium">4. Get Recommendation</span>
             </button>
           </div>
           
           {/* Content card */}
           <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 mb-8">
             {/* Step 1: Define the decision */}
-            {step === 1 && (
+            {activeStep === 1 && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Define Your Decision</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Describe Your Decision</h2>
                 <div className="mb-6">
                   <label className="block mb-2 font-semibold text-slate-700">Decision Title</label>
                   <input 
@@ -1062,7 +1361,7 @@ export default function CustomDecision() {
                     className={`w-full p-3 border rounded-md text-base ${formErrors.decisionTitle ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     value={decisionTitle}
                     onChange={(e) => setDecisionTitle(e.target.value)}
-                    placeholder="What are you deciding on?"
+                    placeholder="What are you deciding on? (e.g., 'Buying a car', 'Choosing a college')"
                   />
                   {formErrors.decisionTitle && (
                     <ValidationMessage message={formErrors.decisionTitle} />
@@ -1075,18 +1374,33 @@ export default function CustomDecision() {
                     className="w-full p-3 border border-slate-300 rounded-md h-32 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={decisionDescription}
                     onChange={(e) => setDecisionDescription(e.target.value)}
-                    placeholder="Describe your decision in more detail..."
+                    placeholder="Provide more details about your decision. What are you trying to achieve? What constraints do you have?"
                   />
                 </div>
                 
-                <div className="mb-8 flex justify-between gap-4">
-                  <AIButton 
-                    onClick={getAiRefinedDecision} 
-                    operation="refining" 
-                    label="Refine with AI" 
-                    disabled={!decisionTitle}
-                    errorMessage={!decisionTitle ? "Enter a decision title first" : ""}
-                  />
+                <div className="mb-8">
+                  <button
+                    onClick={getAiRefinedDecision}
+                    disabled={isLoadingAI && currentAiOperation === 'refining'}
+                    className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors"
+                  >
+                    {isLoadingAI && currentAiOperation === 'refining' ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Refining with AI...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Refine with AI</span>
+                      </>
+                    )}
+                  </button>
                 </div>
                 
                 <div className="flex justify-between">
@@ -1105,9 +1419,10 @@ export default function CustomDecision() {
             )}
             
             {/* Step 2: Set factors and weights */}
-            {step === 2 && (
+            {activeStep === 2 && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Set Factors and Weights</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Add Your Decision Criteria</h2>
+                <p className="mb-6 text-slate-600">Add the important factors that will influence your decision. For each criterion, set how important it is to you (the weight).</p>
                 
                 {formErrors.factorNames && (
                   <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
@@ -1119,77 +1434,102 @@ export default function CustomDecision() {
                   {factors.map((factor) => (
                     <div key={factor.id} className="mb-4 p-4 border border-slate-200 rounded-md shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex flex-col mb-3">
-                        <input 
-                          type="text" 
-                          className={`w-full p-3 border rounded-md mb-3 text-base ${!factor.name && formErrors.factorNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                          value={factor.name}
-                          onChange={(e) => handleFactorNameChange(factor.id, e.target.value)}
-                          placeholder="Factor name"
-                        />
+                        <div className="mb-3">
+                          <input 
+                            type="text" 
+                            className={`w-full p-3 border rounded-md text-base ${!factor.name && formErrors.factorNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            value={factor.name}
+                            onChange={(e) => handleFactorNameChange(factor.id, e.target.value)}
+                            placeholder="Criterion name (e.g., 'Cost', 'Quality', 'Location')"
+                          />
+                        </div>
                         
                         <div className="flex flex-wrap items-center gap-3">
-                          <span className="whitespace-nowrap font-medium text-slate-700">Weight:</span>
+                          <span className="whitespace-nowrap font-medium text-slate-700">Importance:</span>
                           <select 
                             className="p-2 border border-slate-300 rounded-md text-base flex-grow focus:outline-none focus:ring-2 focus:ring-blue-500"
                             value={factor.weight}
                             onChange={(e) => handleWeightChange(factor.id, parseInt(e.target.value))}
                           >
-                            <option value="1">1 - Low importance</option>
-                            <option value="2">2</option>
-                            <option value="3">3 - Medium importance</option>
-                            <option value="4">4</option>
-                            <option value="5">5 - High importance</option>
+                            <option value="1">1 - Not very important</option>
+                            <option value="2">2 - Somewhat important</option>
+                            <option value="3">3 - Important</option>
+                            <option value="4">4 - Very important</option>
+                            <option value="5">5 - Extremely important</option>
                           </select>
-                          
-                          <button 
-                            className="px-3 py-2 bg-red-600 text-white rounded-md ml-auto hover:bg-red-700 transition-colors disabled:bg-red-300 disabled:cursor-not-allowed"
-                            onClick={() => handleRemoveFactor(factor.id)}
-                            disabled={factors.length <= 1}
-                          >
-                            Remove
-                          </button>
                         </div>
                       </div>
                       
-                      <input 
-                        type="text" 
-                        className="w-full p-3 border border-slate-300 rounded-md text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={factor.description}
-                        onChange={(e) => handleFactorDescriptionChange(factor.id, e.target.value)}
-                        placeholder="Description (optional)"
-                      />
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          className="flex-1 p-3 border border-slate-300 rounded-md text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={factor.description}
+                          onChange={(e) => handleFactorDescriptionChange(factor.id, e.target.value)}
+                          placeholder="Description - why is this criterion important? (optional)"
+                        />
+                      </div>
+
+                      <div className="flex gap-2 mt-3 justify-between">
+                        <FieldAIButton 
+                          onClick={() => getAiSuggestedCriterionName(factor.id)}
+                          isLoading={isLoadingAI && currentAiOperation === `criterion-${factor.id}`}
+                          tooltip="Suggest criteria"
+                          showLabel={true}
+                          className="flex-1"
+                        />
+                        
+                        <button 
+                          className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:bg-red-300 disabled:cursor-not-allowed flex-1 flex items-center justify-center"
+                          onClick={() => handleRemoveFactor(factor.id)}
+                          disabled={factors.length <= 1}
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
                 
-                <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="mb-8 grid grid-cols-1 gap-3 sm:gap-4">
                   <button 
-                    className="px-4 py-3 bg-green-600 text-white rounded-md text-sm sm:text-base font-medium hover:bg-green-700 transition-colors"
+                    className="px-4 py-3 bg-green-600 text-white rounded-md text-sm sm:text-base font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
                     onClick={handleAddFactor}
                   >
-                    Add Factor
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add Criterion
                   </button>
-                  <AIButton 
-                    onClick={getAiSuggestedFactors} 
-                    operation="factors" 
-                    label="Suggest Factors with AI" 
-                    disabled={!decisionTitle}
-                    errorMessage={!decisionTitle ? "Enter a decision title first" : ""}
-                  />
-                  <AIButton 
-                    onClick={getAiSuggestedFactor} 
-                    operation="factor" 
-                    label="Add Factor with AI" 
-                    disabled={!decisionTitle}
-                    errorMessage={!decisionTitle ? "Enter a decision title first" : ""}
-                  />
-                  <AIButton 
-                    onClick={getAiSuggestedWeights} 
-                    operation="weights" 
-                    label="Optimize Weights with AI" 
-                    disabled={factors.some(f => !f.name)}
-                    errorMessage={factors.some(f => !f.name) ? "Name all factors first" : ""}
-                  />
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                    <FieldAIButton 
+                      onClick={getAiSuggestedFactors} 
+                      isLoading={isLoadingAI && currentAiOperation === 'factors'}
+                      tooltip="Suggest multiple criteria"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                    <FieldAIButton 
+                      onClick={getAiSuggestedFactor} 
+                      isLoading={isLoadingAI && currentAiOperation === 'factor'}
+                      tooltip="Add one criterion"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                    <FieldAIButton 
+                      onClick={getAiSuggestedWeights} 
+                      isLoading={isLoadingAI && currentAiOperation === 'weights'}
+                      tooltip="Suggest importance values"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
                 
                 <div className="flex justify-between">
@@ -1211,9 +1551,10 @@ export default function CustomDecision() {
             )}
             
             {/* Step 3: Evaluate options */}
-            {step === 3 && (
+            {activeStep === 3 && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Evaluate Your Options</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Rate Your Options</h2>
+                <p className="mb-6 text-slate-600">Enter the choices you're considering and rate each option against your criteria to see which is best.</p>
                 
                 {(formErrors.optionNames || formErrors.optionRatings) && (
                   <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
@@ -1229,19 +1570,30 @@ export default function CustomDecision() {
                       <div className="mb-4">
                         <input 
                           type="text" 
-                          className={`w-full p-3 border rounded-md text-base font-medium ${!option.name && formErrors.optionNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                          className={`w-full p-3 border rounded-md text-base font-medium ${!option.name && formErrors.optionNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2`}
                           value={option.name}
                           onChange={(e) => handleOptionNameChange(option.id, e.target.value)}
-                          placeholder="Option name"
+                          placeholder="Enter a choice (e.g., 'Option A', 'Honda Civic')"
                         />
-                        {options.length > 2 && (
-                          <button 
-                            className="mt-3 px-3 py-2 bg-red-600 text-white rounded-md text-sm w-full hover:bg-red-700 transition-colors"
-                            onClick={() => handleRemoveOption(option.id)}
-                          >
-                            Remove Option
-                          </button>
-                        )}
+                        <div className="flex gap-2 justify-between">
+                          <FieldAIButton 
+                            onClick={() => getAiSuggestedOptionWithId(option.id)}
+                            isLoading={isLoadingAI && currentAiOperation === `option-${option.id}`}
+                            tooltip="Suggest option name"
+                            showLabel={true}
+                          />
+                          {options.length > 2 && (
+                            <button 
+                              className="px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors flex items-center"
+                              onClick={() => handleRemoveOption(option.id)}
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Remove
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       <div>
@@ -1254,20 +1606,51 @@ export default function CustomDecision() {
                             {factor.description && (
                               <div className="text-sm text-slate-600 mb-2">{factor.description}</div>
                             )}
-                            <select 
-                              className={`p-3 border rounded-md w-full text-base ${Object.keys(option.ratings).length === 0 && formErrors.optionRatings ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                              value={option.ratings[factor.id] || 0}
-                              onChange={(e) => handleRatingChange(option.id, factor.id, parseInt(e.target.value))}
-                            >
-                              <option value="0">Select...</option>
-                              <option value="1">1 - Poor</option>
-                              <option value="2">2 - Fair</option>
-                              <option value="3">3 - Average</option>
-                              <option value="4">4 - Good</option>
-                              <option value="5">5 - Excellent</option>
-                            </select>
+                            <div className="flex gap-2">
+                              <select 
+                                className={`flex-1 p-3 border rounded-md text-base ${Object.keys(option.ratings).length === 0 && formErrors.optionRatings ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                value={option.ratings[factor.id] || 0}
+                                onChange={(e) => handleRatingChange(option.id, factor.id, parseInt(e.target.value))}
+                              >
+                                <option value="0">Select...</option>
+                                <option value="1">1 - Poor</option>
+                                <option value="2">2 - Fair</option>
+                                <option value="3">3 - Avg</option>
+                                <option value="4">4 - Good</option>
+                                <option value="5">5 - Great</option>
+                              </select>
+                              <FieldAIButton 
+                                onClick={() => getAiSuggestedRating(option.id, factor.id)}
+                                isLoading={isLoadingAI && currentAiOperation === `rating-${option.id}-${factor.id}`}
+                                tooltip="Rate"
+                                showLabel={true}
+                              />
+                            </div>
                           </div>
                         ))}
+                        
+                        <button
+                          onClick={() => getAiSuggestedOptionRatings(option.id)}
+                          disabled={isLoadingAI && currentAiOperation === `ratings-${option.id}`}
+                          className="w-full mt-3 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors"
+                        >
+                          {isLoadingAI && currentAiOperation === `ratings-${option.id}` ? (
+                            <>
+                              <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Rating option...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              <span>Rate this option with AI</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1283,19 +1666,53 @@ export default function CustomDecision() {
                           <th key={option.id} className="p-3 border border-slate-200 min-w-[200px]">
                             <input 
                               type="text" 
-                              className={`w-full p-2 border rounded-md ${!option.name && formErrors.optionNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                              className={`w-full p-2 border rounded-md mb-2 ${!option.name && formErrors.optionNames ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                               value={option.name}
                               onChange={(e) => handleOptionNameChange(option.id, e.target.value)}
-                              placeholder="Option name"
+                              placeholder="Enter a choice (e.g., 'Option A', 'Honda Civic')"
                             />
-                            {options.length > 2 && (
-                              <button 
-                                className="mt-2 px-2 py-1 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
-                                onClick={() => handleRemoveOption(option.id)}
-                              >
-                                Remove
-                              </button>
-                            )}
+                            <div className="flex justify-between gap-2">
+                              <FieldAIButton 
+                                onClick={() => getAiSuggestedOptionWithId(option.id)} 
+                                isLoading={isLoadingAI && currentAiOperation === `option-${option.id}`}
+                                tooltip="Suggest name"
+                                showLabel={true}
+                              />
+                              {options.length > 2 && (
+                                <button 
+                                  className="px-2 py-1 bg-red-600 text-white rounded-md text-sm flex items-center hover:bg-red-700 transition-colors"
+                                  onClick={() => handleRemoveOption(option.id)}
+                                >
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={() => getAiSuggestedOptionRatings(option.id)}
+                              disabled={isLoadingAI && currentAiOperation === `ratings-${option.id}`}
+                              className="w-full mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors text-sm"
+                            >
+                              {isLoadingAI && currentAiOperation === `ratings-${option.id}` ? (
+                                <>
+                                  <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Rating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                  </svg>
+                                  <span>Rate this option with AI</span>
+                                </>
+                              )}
+                            </button>
                           </th>
                         ))}
                       </tr>
@@ -1312,18 +1729,26 @@ export default function CustomDecision() {
                           </td>
                           {options.map((option) => (
                             <td key={`${option.id}-${factor.id}`} className="p-3 border border-slate-200 text-center">
-                              <select 
-                                className={`p-2 border rounded-md w-full ${Object.keys(option.ratings).length === 0 && formErrors.optionRatings ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                                value={option.ratings[factor.id] || 0}
-                                onChange={(e) => handleRatingChange(option.id, factor.id, parseInt(e.target.value))}
-                              >
-                                <option value="0">Select...</option>
-                                <option value="1">1 - Poor</option>
-                                <option value="2">2 - Fair</option>
-                                <option value="3">3 - Average</option>
-                                <option value="4">4 - Good</option>
-                                <option value="5">5 - Excellent</option>
-                              </select>
+                              <div className="flex gap-2">
+                                <select 
+                                  className={`flex-1 p-2 border rounded-md ${Object.keys(option.ratings).length === 0 && formErrors.optionRatings ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                  value={option.ratings[factor.id] || 0}
+                                  onChange={(e) => handleRatingChange(option.id, factor.id, parseInt(e.target.value))}
+                                >
+                                  <option value="0">Select...</option>
+                                  <option value="1">1 - Poor</option>
+                                  <option value="2">2 - Fair</option>
+                                  <option value="3">3 - Avg</option>
+                                  <option value="4">4 - Good</option>
+                                  <option value="5">5 - Great</option>
+                                </select>
+                                <FieldAIButton 
+                                  onClick={() => getAiSuggestedRating(option.id, factor.id)}
+                                  isLoading={isLoadingAI && currentAiOperation === `rating-${option.id}-${factor.id}`}
+                                  tooltip="Rate"
+                                  showLabel={true}
+                                />
+                              </div>
                             </td>
                           ))}
                         </tr>
@@ -1332,43 +1757,42 @@ export default function CustomDecision() {
                   </table>
                 </div>
                 
-                <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="mb-8 grid grid-cols-1 gap-3 sm:gap-4">
                   <button 
-                    className="px-4 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors"
+                    className="px-4 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
                     onClick={handleAddOption}
                   >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
                     Add Option
                   </button>
-                  <AIButton 
-                    onClick={getAiSuggestedOption}
-                    operation="option"
-                    label="Add Option with AI"
-                    disabled={factors.some(f => !f.name)}
-                    errorMessage={factors.some(f => !f.name) ? "Name all factors first" : ""}
-                  />
-                  <AIButton 
-                    onClick={getAiDefaultOptions} 
-                    operation="defaults" 
-                    label="Suggest Default Options" 
-                    disabled={factors.some(f => !f.name)}
-                    errorMessage={factors.some(f => !f.name) ? "Name all factors first" : ""}
-                  />
-                  <AIButton 
-                    onClick={getAiSuggestedRatings} 
-                    operation="ratings" 
-                    label="Suggest Ratings with AI" 
-                    disabled={options.some(o => !o.name) || factors.some(f => !f.name)}
-                    errorMessage={
-                      options.some(o => !o.name) && factors.some(f => !f.name) 
-                        ? "Name all options and factors first" 
-                        : options.some(o => !o.name) 
-                          ? "Name all options first" 
-                          : factors.some(f => !f.name) 
-                            ? "Name all factors first" 
-                            : ""
-                    }
-                    className="col-span-1 sm:col-span-2"
-                  />
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                    <FieldAIButton 
+                      onClick={getAiSuggestedOption}
+                      isLoading={isLoadingAI && currentAiOperation === 'option'}
+                      tooltip="Add a new option"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                    <FieldAIButton 
+                      onClick={getAiDefaultOptions} 
+                      isLoading={isLoadingAI && currentAiOperation === 'defaults'}
+                      tooltip="Suggest default options"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                    <FieldAIButton 
+                      onClick={getAiSuggestedRatings} 
+                      isLoading={isLoadingAI && currentAiOperation === 'ratings'}
+                      tooltip="Rate all options"
+                      size="md"
+                      showLabel={true}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
                 
                 <div className="flex justify-between">
@@ -1416,9 +1840,10 @@ export default function CustomDecision() {
             )}
             
             {/* Step 4: Results */}
-            {step === 4 && (
+            {activeStep === 4 && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Decision Results</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Your Decision Recommendation</h2>
+                <p className="mb-6 text-slate-600">Based on your criteria and ratings, here's what our analysis shows:</p>
                 
                 {/* Top recommendation */}
                 {topOption && (
@@ -1430,16 +1855,33 @@ export default function CustomDecision() {
                       <div className="text-center p-4">Generating AI explanation...</div>
                     ) : aiExplanation ? (
                       <div className="mt-4">
-                        <h4 className="font-semibold text-slate-700 mb-2">AI Explanation:</h4>
+                        <h4 className="font-semibold text-slate-700 mb-2">Why this is recommended:</h4>
                         <p className="mt-2 text-sm sm:text-base text-slate-600 bg-white p-4 rounded-md border border-slate-200">{aiExplanation}</p>
                       </div>
                     ) : (
                       <div className="mt-4">
-                        <AIButton 
-                          onClick={() => getAiExplanation(topOption)} 
-                          operation="explanation" 
-                          label="Get AI Explanation" 
-                        />
+                        <button
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md flex items-center justify-center transition-colors"
+                          onClick={() => getAiExplanation(topOption)}
+                          disabled={isLoadingAI && currentAiOperation === 'explanation'}
+                        >
+                          {isLoadingAI && currentAiOperation === 'explanation' ? (
+                            <>
+                              <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Loading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              <span>Explain This Recommendation</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1447,7 +1889,7 @@ export default function CustomDecision() {
                 
                 {/* Full results */}
                 <div className="mb-8">
-                  <h3 className="text-xl font-bold mb-4 text-slate-800">All Options</h3>
+                  <h3 className="text-xl font-bold mb-4 text-slate-800">All Options Compared</h3>
                   
                   {scoredOptions.map((option, index) => {
                     const { strongFactors, weakFactors } = getFactorAnalysis(option);
@@ -1505,28 +1947,28 @@ export default function CustomDecision() {
                   {user ? (
                     <button 
                       className="px-5 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors"
-                      onClick={saveDecision}
-                      disabled={isLoadingAI && currentAiOperation === 'saving'}
-                    >
-                      {isLoadingAI && currentAiOperation === 'saving' ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Saving...
-                        </>
-                      ) : 'Save Decision'}
-                    </button>
-                  ) : (
-                    <Link 
-                      href="/login"
-                      className="px-5 py-3 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors"
-                      onClick={storePendingDecision}
-                    >
-                      Log in to Save
-                    </Link>
-                  )}
+                        onClick={saveDecision}
+                        disabled={isLoadingAI && currentAiOperation === 'saving'}
+                      >
+                        {isLoadingAI && currentAiOperation === 'saving' ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                          </>
+                        ) : 'Save Decision'}
+                      </button>
+                    ) : (
+                      <Link 
+                        href="/login"
+                        className="px-5 py-3 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors"
+                        onClick={storePendingDecision}
+                      >
+                        Log in to Save
+                      </Link>
+                    )}
                 </div>
               </div>
             )}
