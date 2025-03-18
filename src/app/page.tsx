@@ -22,10 +22,10 @@ export default function Home() {
           <h1 className="text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-purple via-primary-indigo to-primary-teal mb-6">
             Decidr
           </h1>
-          <p className="text-xl md:text-2xl text-white mb-8">
+          <p className="text-xl md:text-2xl text-white mb-8 font-semibold text-shadow">
             Clarity when it matters most
           </p>
-          <p className="text-lg md:text-xl text-white/80 mb-10 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl bg-black/30 p-4 rounded-lg text-white font-medium mb-10 max-w-2xl mx-auto">
             Make complex decisions simpler with our AI-powered decision engine that 
             analyzes your preferences, priorities, and constraints to provide personalized recommendations.
           </p>
@@ -38,7 +38,7 @@ export default function Home() {
             </Link>
             <Link 
               href="/how-it-works" 
-              className="bg-white/20 backdrop-blur-sm text-white border border-white/30 hover:bg-white/30 text-lg px-8 py-3 rounded-lg transition-all duration-300"
+              className="bg-white text-primary-indigo font-semibold hover:bg-white/90 text-lg px-8 py-3 rounded-lg transition-all duration-300 hover:shadow-lg"
             >
               How It Works
             </Link>

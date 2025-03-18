@@ -3,239 +3,91 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useNotification } from '@/components/NotificationContext';
+import { useAuth } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
-// Type definitions
+// Define decision types
+type Option = {
+  id?: string;
+  name: string;
+  ratings?: Record<string, number>;
+  totalScore?: number;
+  percentageScore?: number;
+};
+
 type Factor = {
   id: string;
   name: string;
   weight: number;
-  description: string;
-};
-
-type Ratings = {
-  [factorId: string]: number;
-};
-
-type Option = {
-  id: string;
-  name: string;
-  score: number;
-  ratings: Ratings;
-  notes: string;
+  description?: string;
 };
 
 type Decision = {
   id: string;
   title: string;
-  type: string;
-  date: string;
+  type?: string;
   description: string;
   factors: Factor[];
   options: Option[];
-};
-
-type DecisionData = {
-  [key: string]: Decision;
-};
-
-// Mock data for a single decision
-const mockDecisionData: DecisionData = {
-  dec1: {
-    id: 'dec1',
-    title: 'Job Offer Comparison',
-    type: 'career',
-    date: '2025-03-12',
-    description: 'Evaluating two job offers based on compensation, growth potential, and work-life balance.',
-    factors: [
-      { id: 'salary', name: 'Salary', weight: 4, description: 'Annual compensation including bonuses' },
-      { id: 'growth', name: 'Growth Potential', weight: 3, description: 'Opportunities for advancement and skill development' },
-      { id: 'balance', name: 'Work-Life Balance', weight: 3, description: 'Flexibility and time for personal life' },
-      { id: 'culture', name: 'Company Culture', weight: 2, description: 'Work environment and team dynamics' },
-      { id: 'location', name: 'Location', weight: 2, description: 'Commute, area desirability, and cost of living' },
-      { id: 'benefits', name: 'Benefits', weight: 1, description: 'Healthcare, retirement, and other perks' },
-    ],
-    options: [
-      { 
-        id: 'option1', 
-        name: 'Company A', 
-        score: 87,
-        ratings: {
-          salary: 5,
-          growth: 4,
-          balance: 3,
-          culture: 5,
-          location: 4,
-          benefits: 3,
-        },
-        notes: 'Established company with great reputation. Higher salary but potentially longer hours.'
-      },
-      { 
-        id: 'option2', 
-        name: 'Company B', 
-        score: 72,
-        ratings: {
-          salary: 3,
-          growth: 5,
-          balance: 4,
-          culture: 3,
-          location: 2,
-          benefits: 4,
-        },
-        notes: 'Startup with exciting growth potential but lower initial compensation. Better work-life balance.'
-      },
-    ],
-  },
-  dec2: {
-    id: 'dec2',
-    title: 'Apartment Selection',
-    type: 'life',
-    date: '2025-03-05',
-    description: 'Deciding on a new apartment based on location, price, and amenities.',
-    factors: [
-      { id: 'price', name: 'Price', weight: 5, description: 'Monthly rent and utilities' },
-      { id: 'location', name: 'Location', weight: 4, description: 'Proximity to work and amenities' },
-      { id: 'space', name: 'Space', weight: 3, description: 'Square footage and layout' },
-      { id: 'amenities', name: 'Amenities', weight: 2, description: 'Building features like gym, pool, etc.' },
-      { id: 'neighborhood', name: 'Neighborhood', weight: 3, description: 'Safety, restaurants, nightlife' },
-    ],
-    options: [
-      { 
-        id: 'option1', 
-        name: 'Downtown Loft', 
-        score: 84,
-        ratings: {
-          price: 3,
-          location: 5,
-          space: 3,
-          amenities: 5,
-          neighborhood: 5,
-        },
-        notes: 'Great location with lots of dining and entertainment options. More expensive but excellent amenities.'
-      },
-      { 
-        id: 'option2', 
-        name: 'Suburban Townhouse', 
-        score: 90,
-        ratings: {
-          price: 4,
-          location: 3,
-          space: 5,
-          amenities: 4,
-          neighborhood: 4,
-        },
-        notes: 'More space for the money and quieter environment. Longer commute to work.'
-      },
-      { 
-        id: 'option3', 
-        name: 'Midtown Apartment', 
-        score: 76,
-        ratings: {
-          price: 3,
-          location: 4,
-          space: 2,
-          amenities: 3,
-          neighborhood: 4,
-        },
-        notes: 'Good compromise on location but smaller space. Decent amenities.'
-      },
-    ],
-  },
-  dec3: {
-    id: 'dec3',
-    title: 'Car Purchase',
-    type: 'purchase',
-    date: '2025-02-23',
-    description: 'Selecting a new vehicle based on price, features, and efficiency.',
-    factors: [
-      { id: 'price', name: 'Price', weight: 5, description: 'Purchase price and financing terms' },
-      { id: 'efficiency', name: 'Fuel Efficiency', weight: 4, description: 'Miles per gallon or electric range' },
-      { id: 'features', name: 'Features', weight: 3, description: 'Technology, comfort, and safety features' },
-      { id: 'reliability', name: 'Reliability', weight: 4, description: 'Expected maintenance and durability' },
-      { id: 'style', name: 'Style', weight: 2, description: 'Appearance and design' },
-    ],
-    options: [
-      { 
-        id: 'option1', 
-        name: 'Tesla Model 3', 
-        score: 82,
-        ratings: {
-          price: 2,
-          efficiency: 5,
-          features: 5,
-          reliability: 3,
-          style: 5,
-        },
-        notes: 'Electric vehicle with cutting-edge technology. Higher upfront cost but lower operating costs.'
-      },
-      { 
-        id: 'option2', 
-        name: 'Toyota Camry', 
-        score: 88,
-        ratings: {
-          price: 4,
-          efficiency: 4,
-          features: 3,
-          reliability: 5,
-          style: 3,
-        },
-        notes: 'Extremely reliable with good fuel efficiency. Not as exciting but practical choice.'
-      },
-      { 
-        id: 'option3', 
-        name: 'Honda Accord', 
-        score: 79,
-        ratings: {
-          price: 4,
-          efficiency: 4,
-          features: 3,
-          reliability: 4,
-          style: 2,
-        },
-        notes: 'Similar to the Camry but slightly less reliable historically. Good value overall.'
-      },
-    ],
-  },
+  createdAt: string;
 };
 
 export default function DecisionDetail() {
-  const params = useParams();
-  const router = useRouter();
   const [decision, setDecision] = useState<Decision | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('summary');
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const { showNotification } = useNotification();
+  const { user, session } = useAuth();
+  const params = useParams();
+  const id = params.id as string;
+  const router = useRouter();
   
+  // Available categories for selection
+  const categories = [
+    { value: 'career', label: 'Career Decision' },
+    { value: 'purchase', label: 'Major Purchase' },
+    { value: 'life', label: 'Life Change' },
+    { value: 'custom', label: 'Custom Decision' },
+  ];
+  
+  // Fetch decision details on component mount
   useEffect(() => {
-    // In a real app, this would be an API call
-    const id = params.id;
-    if (typeof id !== 'string' || !mockDecisionData[id]) {
-      router.push('/dashboard');
-      return;
-    }
+    const fetchDecision = async () => {
+      try {
+        if (!user || !session) return;
+        
+        setIsLoading(true);
+        
+        const response = await fetch(`/api/decisions/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch decision details');
+        }
+        
+        const data = await response.json();
+        setDecision(data);
+      } catch (error) {
+        console.error('Error fetching decision details:', error);
+        showNotification('Could not load decision details. Please try again later.', 'error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    setDecision(mockDecisionData[id]);
-    setLoading(false);
-  }, [params.id, router]);
+    fetchDecision();
+  }, [id, user, session, showNotification]);
   
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading decision...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!decision) {
-    return null; // This should not happen as we redirect in the useEffect
-  }
-  
-  // Get the top option (highest score)
-  const topOption = [...decision.options].sort((a, b) => b.score - a.score)[0];
-  
-  // Get type label
-  const getTypeLabel = (type: string): string => {
+  // Get decision type label
+  const getTypeLabel = (type: string = 'custom') => {
     switch (type) {
       case 'career': return 'Career Decision';
       case 'life': return 'Life Change';
@@ -244,347 +96,358 @@ export default function DecisionDetail() {
     }
   };
   
-  // Generate factor strengths and weaknesses for an option
-  const getFactorAnalysis = (option: Option) => {
-    const strengths = decision.factors
-      .filter(factor => (option.ratings[factor.id] || 0) >= 4)
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, 3);
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Unknown date';
+    
+    try {
+      // Try parsing as ISO string
+      const date = new Date(dateString);
       
-    const weaknesses = decision.factors
-      .filter(factor => (option.ratings[factor.id] || 0) <= 2 && (option.ratings[factor.id] || 0) > 0)
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, 3);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.log('Invalid date:', dateString);
+        return 'Invalid date';
+      }
       
-    return { strengths, weaknesses };
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return 'Invalid date';
+    }
+  };
+  
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+  
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!session?.access_token || !id) {
+      showNotification('Unable to delete decision', 'error');
+      return;
+    }
+    
+    try {
+      setIsDeleting(true);
+      
+      const response = await fetch(`/api/decisions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete decision');
+      }
+      
+      showNotification('Decision deleted successfully', 'success');
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error deleting decision:', error);
+      showNotification('Could not delete the decision. Please try again.', 'error');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+  
+  // Handle category edit display
+  const handleEditCategory = () => {
+    if (decision) {
+      setSelectedCategory(decision.type || 'custom');
+      setIsEditingCategory(true);
+    }
+  };
+  
+  // Cancel category edit
+  const handleCancelCategoryEdit = () => {
+    setIsEditingCategory(false);
+  };
+  
+  // Save updated category
+  const handleSaveCategory = async () => {
+    if (!decision || !session?.access_token) return;
+    
+    try {
+      setIsSavingCategory(true);
+      
+      const response = await fetch(`/api/decisions/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ type: selectedCategory })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update decision category');
+      }
+      
+      const updatedDecision = await response.json();
+      setDecision(updatedDecision);
+      showNotification('Decision category updated successfully', 'success');
+    } catch (error) {
+      console.error('Error updating category:', error);
+      showNotification('Could not update decision category', 'error');
+    } finally {
+      setIsSavingCategory(false);
+      setIsEditingCategory(false);
+    }
   };
   
   return (
-    <main className="min-h-screen flex flex-col">
-      <div className="bg-gradient-to-br from-primary-light to-secondary-dark py-8 px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-white/80 mb-2">
-                <Link href="/dashboard" className="hover:text-white">
-                  Dashboard
-                </Link>
-                <span>›</span>
-                <span>{getTypeLabel(decision.type)}</span>
-              </div>
-              <h1 className="text-3xl font-bold text-white">
-                {decision.title}
-              </h1>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <button className="text-white/80 hover:text-white flex items-center gap-1">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                  <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                </svg>
-                <span>Edit</span>
-              </button>
-              
-              <button className="text-white/80 hover:text-white flex items-center gap-1">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <span>Delete</span>
-              </button>
-            </div>
+    <ProtectedRoute>
+      {isLoading ? (
+        <div className="glass-card p-12 text-center">
+          <div className="w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+            <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           </div>
+          <p className="text-gray-600">Loading decision details...</p>
         </div>
-      </div>
-      
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="flex overflow-x-auto">
-            <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                activeTab === 'summary' 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab('summary')}
-            >
-              Summary
-            </button>
-            <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                activeTab === 'factors' 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab('factors')}
-            >
-              Factors
-            </button>
-            <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                activeTab === 'compare' 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab('compare')}
-            >
-              Compare Options
-            </button>
-          </div>
+      ) : !decision ? (
+        <div className="glass-card p-6 text-center">
+          <p className="text-gray-600 mb-4">Could not find decision details.</p>
+          <Link href="/dashboard" className="btn-primary">
+            Return to Dashboard
+          </Link>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 py-12 px-8 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          {/* Summary Tab */}
-          {activeTab === 'summary' && (
-            <div>
-              <div className="mb-10">
-                <h2 className="text-2xl font-bold mb-2">Decision Summary</h2>
-                <p className="text-gray-600">{decision.description}</p>
-                <div className="mt-4 text-sm text-gray-500">
-                  Made on {decision.date}
+      ) : (
+        <>
+          {/* Delete Confirmation Modal */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="glass-card p-6 max-w-lg w-full mx-4">
+                <h3 className="text-xl font-bold mb-4">Delete Decision</h3>
+                <p className="mb-6">
+                  Are you sure you want to delete <strong>{decision.title}</strong>? This action cannot be undone.
+                </p>
+                <div className="flex justify-end space-x-4">
+                  <button
+                    onClick={handleCancelDelete}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </button>
                 </div>
               </div>
-              
-              <div className="mb-10">
-                <h2 className="text-2xl font-bold mb-6">Recommendation</h2>
-                
-                <div className="glass-card p-6">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </div>
+          )}
+        
+          {/* Breadcrumb Navigation */}
+          <div className="bg-white shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="py-4">
+                <nav className="flex" aria-label="Breadcrumb">
+                  <ol className="flex items-center space-x-2">
+                    <li>
+                      <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">Home</Link>
+                    </li>
+                    <li>
+                      <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M5.555 17.776l8-16 .894.448-8 16-.894-.448z" />
+                      </svg>
+                    </li>
+                    <li>
+                      <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">Dashboard</Link>
+                    </li>
+                    <li>
+                      <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M5.555 17.776l8-16 .894.448-8 16-.894-.448z" />
+                      </svg>
+                    </li>
+                    <li>
+                      <span className="text-sm font-medium text-primary-indigo">Decision Details</span>
+                    </li>
+                  </ol>
+                </nav>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-primary py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+                <div className="mb-4 md:mb-0">
+                  {isEditingCategory ? (
+                    <div className="flex items-center space-x-2 mb-2">
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="bg-white/20 text-white border border-white/30 rounded-full px-3 py-1 text-sm"
+                      >
+                        {categories.map((category) => (
+                          <option key={category.value} value={category.value} className="bg-slate-700 text-white">
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleSaveCategory}
+                        disabled={isSavingCategory}
+                        className="bg-white/20 hover:bg-white/30 text-white rounded-full p-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handleCancelCategoryEdit}
+                        className="bg-white/20 hover:bg-white/30 text-white rounded-full p-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white mb-2 cursor-pointer hover:bg-white/30"
+                      onClick={handleEditCategory}
+                    >
+                      {getTypeLabel(decision?.type)}
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                       </svg>
                     </div>
-                    <div>
-                      <div className="text-sm font-semibold text-primary mb-1">
-                        Recommended Option
-                      </div>
-                      <h3 className="text-2xl font-bold">{topOption.name}</h3>
-                      <div className="text-gray-500 mt-1">Match score: {topOption.score}%</div>
-                    </div>
-                  </div>
-                  
-                  <div className="h-2 bg-gray-200 rounded-full mb-6">
-                    <div 
-                      className="h-2 bg-primary rounded-full" 
-                      style={{ width: `${topOption.score}%` }}
-                    ></div>
-                  </div>
-                  
-                  {topOption.notes && (
-                    <div className="mb-6">
-                      <h4 className="font-medium mb-2">Notes</h4>
-                      <p className="text-gray-600">{topOption.notes}</p>
-                    </div>
                   )}
-                  
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {(() => {
-                      const { strengths, weaknesses } = getFactorAnalysis(topOption);
-                      
-                      return (
-                        <>
-                          <div>
-                            <h4 className="font-medium text-gray-700 mb-2">Key Strengths</h4>
-                            {strengths.length > 0 ? (
-                              <ul className="space-y-2">
-                                {strengths.map(factor => (
-                                  <li key={factor.id} className="flex items-start">
-                                    <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                    </svg>
-                                    <div>
-                                      <span className="font-medium">{factor.name}</span>
-                                      <span className="text-sm text-gray-500 ml-2">
-                                        (Rated {topOption.ratings[factor.id]}/5)
-                                      </span>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-gray-500 italic">No notable strengths</p>
+                  <h1 className="text-3xl md:text-4xl font-bold text-white">{decision?.title}</h1>
+                  <p className="text-white/80 mt-2">
+                    Created {decision && formatDate(decision.createdAt)}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleDeleteClick}
+                    className="inline-flex items-center px-4 py-2 rounded-md text-white bg-red-500/20 hover:bg-red-500/30"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 py-10 px-8 bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="max-w-6xl mx-auto">
+              <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+                {/* Left column - Decision Info */}
+                <div className="lg:col-span-1">
+                  <div className="glass-card p-6 mb-6">
+                    <h2 className="text-xl font-bold mb-4">Decision Information</h2>
+                    
+                    {decision.description && (
+                      <div className="mb-6">
+                        <h3 className="text-sm text-gray-500 mb-2">Description</h3>
+                        <p className="text-gray-700">{decision.description}</p>
+                      </div>
+                    )}
+                    
+                    <div className="mb-6">
+                      <h3 className="text-sm text-gray-500 mb-2">Factors ({decision.factors.length})</h3>
+                      <div className="space-y-3">
+                        {decision.factors.map((factor) => (
+                          <div key={factor.id} className="bg-white p-3 rounded-md border border-gray-200">
+                            <div className="flex justify-between">
+                              <div className="font-medium">{factor.name}</div>
+                              <div className="text-gray-500 text-sm">Weight: {factor.weight}</div>
+                            </div>
+                            {factor.description && (
+                              <div className="text-sm text-gray-600 mt-1">{factor.description}</div>
                             )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Right column - Results */}
+                <div className="lg:col-span-2">
+                  <div className="glass-card p-6 mb-6">
+                    <h2 className="text-xl font-bold mb-6">Decision Results</h2>
+                    
+                    {/* Top recommendation */}
+                    {decision.options.length > 0 && (
+                      <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
+                        <h3 className="text-xl font-bold mb-3 text-blue-800">
+                          Top Recommendation: {decision.options[0].name}
+                        </h3>
+                        <div className="text-2xl font-bold mb-4 text-blue-600">
+                          {decision.options[0].percentageScore || ''}%
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* All options */}
+                    <div className="space-y-6">
+                      <h3 className="text-lg font-semibold">All Options</h3>
+                      
+                      {decision.options.map((option, index) => (
+                        <div key={option.id || index} className="mb-6 border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-lg font-medium">{option.name}</h4>
+                            <div className="text-lg font-bold text-primary-indigo">
+                              {option.percentageScore || ''}%
+                            </div>
                           </div>
                           
-                          <div>
-                            <h4 className="font-medium text-gray-700 mb-2">Considerations</h4>
-                            {weaknesses.length > 0 ? (
-                              <ul className="space-y-2">
-                                {weaknesses.map(factor => (
-                                  <li key={factor.id} className="flex items-start">
-                                    <svg className="w-5 h-5 text-amber-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                    </svg>
-                                    <div>
-                                      <span className="font-medium">{factor.name}</span>
-                                      <span className="text-sm text-gray-500 ml-2">
-                                        (Rated {topOption.ratings[factor.id]}/5)
-                                      </span>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-gray-500 italic">No significant concerns</p>
-                            )}
+                          <div className="w-full bg-gray-200 h-2 rounded-full mb-4">
+                            <div 
+                              className={`h-2 rounded-full ${index === 0 ? 'bg-primary' : 'bg-secondary'}`}
+                              style={{ width: `${option.percentageScore || 0}%` }}
+                            ></div>
                           </div>
-                        </>
-                      );
-                    })()}
+                          
+                          {option.ratings && Object.keys(option.ratings).length > 0 && (
+                            <div className="mt-4">
+                              <h5 className="text-sm font-medium text-gray-500 mb-2">Ratings by Factor</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {Object.entries(option.ratings).map(([factorId, rating]) => {
+                                  const factor = decision.factors.find(f => f.id === factorId);
+                                  return factor ? (
+                                    <div key={factorId} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                      <span className="text-sm">{factor.name}</span>
+                                      <span className="text-sm font-medium">{rating}/5</span>
+                                    </div>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div>
-                <h2 className="text-2xl font-bold mb-6">All Options</h2>
-                
-                <div className="grid gap-4">
-                  {decision.options
-                    .sort((a, b) => b.score - a.score)
-                    .map((option, index) => (
-                      <div key={option.id} className="glass-card p-4 flex items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 ${
-                          index === 0 ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-medium">{option.name}</h3>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium text-lg">{option.score}%</div>
-                          <div className="text-xs text-gray-500">match score</div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
             </div>
-          )}
-          
-          {/* Factors Tab */}
-          {activeTab === 'factors' && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6">Decision Factors</h2>
-              <p className="text-gray-600 mb-8">
-                These are the factors you considered important in making this decision.
-                The weight indicates how important each factor was in the overall calculation.
-              </p>
-              
-              <div className="space-y-4">
-                {decision.factors
-                  .sort((a, b) => b.weight - a.weight)
-                  .map(factor => (
-                    <div key={factor.id} className="glass-card p-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xl font-medium">{factor.name}</h3>
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map(w => (
-                            <div 
-                              key={w} 
-                              className={`w-6 h-6 rounded-full flex items-center justify-center mx-0.5 text-sm ${
-                                w <= factor.weight 
-                                  ? 'bg-primary text-white' 
-                                  : 'bg-gray-200 text-gray-400'
-                              }`}
-                            >
-                              {w}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-gray-600">{factor.description}</p>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Compare Tab */}
-          {activeTab === 'compare' && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6">Compare Options</h2>
-              <p className="text-gray-600 mb-8">
-                See how each option compares across all factors.
-              </p>
-              
-              <div className="overflow-x-auto glass-card">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="py-4 px-6 text-left font-medium text-gray-500">Factor</th>
-                      <th className="py-4 px-6 text-left font-medium text-gray-500">Weight</th>
-                      {decision.options.map(option => (
-                        <th key={option.id} className="py-4 px-6 text-left font-medium text-gray-500">
-                          {option.name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {decision.factors.map(factor => (
-                      <tr key={factor.id} className="border-t border-gray-200">
-                        <td className="py-4 px-6 font-medium">
-                          {factor.name}
-                          <div className="text-xs text-gray-500">{factor.description}</div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex">
-                            {[1, 2, 3, 4, 5].map(w => (
-                              <div 
-                                key={w} 
-                                className={`w-5 h-5 rounded-full flex items-center justify-center mx-0.5 text-xs ${
-                                  w <= factor.weight 
-                                    ? 'bg-primary text-white' 
-                                    : 'bg-gray-200 text-gray-400'
-                                }`}
-                              >
-                                {w}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                        {decision.options.map(option => (
-                          <td key={option.id} className="py-4 px-6">
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map(r => (
-                                <div 
-                                  key={r} 
-                                  className={`w-8 h-8 rounded-md flex items-center justify-center mx-0.5 ${
-                                    (option.ratings[factor.id] || 0) === r
-                                      ? 'bg-primary text-white' 
-                                      : 'bg-gray-100 text-gray-400'
-                                  }`}
-                                >
-                                  {r}
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    <tr className="border-t border-gray-200 font-bold bg-gray-50">
-                      <td className="py-4 px-6">Final Score</td>
-                      <td className="py-4 px-6"></td>
-                      {decision.options.map(option => (
-                        <td key={option.id} className="py-4 px-6 text-primary text-lg">
-                          {option.score}%
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </main>
+          </div>
+        </>
+      )}
+    </ProtectedRoute>
   );
 } 

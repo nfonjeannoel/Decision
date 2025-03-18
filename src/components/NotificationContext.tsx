@@ -22,7 +22,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  const showNotification = useCallback((message: string, type: NotificationType = 'info', duration = 5000) => {
+  const showNotification = useCallback((message: string, type: NotificationType = 'info', duration = 8000) => {
     const id = uuidv4();
     setNotifications(prev => [...prev, { id, message, type, duration }]);
     return id;
@@ -35,7 +35,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   return (
     <NotificationContext.Provider value={{ notifications, showNotification, hideNotification }}>
       {children}
-      <div className="notification-container z-50">
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md">
         {notifications.map(notification => (
           <Notification
             key={notification.id}

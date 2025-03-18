@@ -196,4 +196,74 @@ export async function suggestOptionRatings(title: string, description: string, f
     // Return the original options if the API call fails
     return { options };
   }
+}
+
+// Function to suggest a single new factor that is not already in the list
+export async function suggestNewFactor(decisionType: string, description: string, title: string, existingFactors: string[] = []) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an AI assistant helping users identify important factors for their decision. Your task is to suggest ONE new factor that they haven't already considered."
+        },
+        {
+          role: "user", 
+          content: `I'm making a ${decisionType} decision:
+                   Title: ${title}
+                   Description: ${description}
+                   
+                   I've already considered these factors:
+                   ${existingFactors.join(', ')}
+                   
+                   Please suggest ONE new important factor I should consider that's not in my list.
+                   Return a JSON object with a single factor including name, description, and suggested weight (1-5).
+                   Format: {factor: {name: string, description: string, weight: number}}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+    
+    return JSON.parse(response.choices[0].message.content || '{"factor": null}');
+  } catch (error) {
+    console.error('Error suggesting new factor:', error);
+    return { factor: null };
+  }
+}
+
+// Function to suggest new option names based on decision context
+export async function suggestOptions(title: string, description: string, factors: any[], count: number = 2) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an AI assistant helping users generate relevant options for their decision. Your task is to suggest specific, contextually appropriate options based on the decision details."
+        },
+        {
+          role: "user", 
+          content: `I'm making a decision with the following information:
+                   Title: ${title}
+                   Description: ${description}
+                   Factors I'm considering: ${JSON.stringify(factors)}
+                   
+                   Please suggest ${count} specific, realistic options that are directly relevant to my decision context.
+                   Give each option a clear, descriptive name that reflects a real choice I might consider.
+                   Return a JSON array of options with names only.
+                   Format: {options: [{name: string}]}`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.8,
+    });
+    
+    return JSON.parse(response.choices[0].message.content || '{"options": []}');
+  } catch (error) {
+    console.error('Error suggesting options:', error);
+    // Return empty options array if the API call fails
+    return { options: [] };
+  }
 } 
