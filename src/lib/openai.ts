@@ -48,13 +48,14 @@ export async function getSuggestedFactors(decisionType: string, customDescriptio
       messages: [
         {
           role: "system",
-          content: "You are an AI assistant helping users make better decisions. Your task is to suggest relevant factors they should consider for their specific decision type."
+          content: "You are an AI assistant helping users make better decisions. Your task is to suggest relevant factors they should consider for their specific decision type. Each factor must have a clear name and detailed description."
         },
         {
           role: "user", 
           content: `I'm trying to make a ${decisionType} decision${customDescription ? `: ${customDescription}` : ''}. 
                    What are the most important factors I should consider? 
-                   Please return a JSON array of 6-8 factors, each with a name, description, and suggested weight (1-5).
+                   IMPORTANT: Each factor MUST have both a clear name AND a detailed description of why it's important.
+                   Please return a JSON array of 4-6 factors, each with a name, description, and suggested weight (1-5).
                    Format: [{id: string, name: string, description: string, weight: number}]`
         }
       ],
@@ -206,7 +207,7 @@ export async function suggestNewFactor(decisionType: string, description: string
       messages: [
         {
           role: "system",
-          content: "You are an AI assistant helping users identify important factors for their decision. Your task is to suggest ONE new factor that they haven't already considered."
+          content: "You are an AI assistant helping users identify important factors for their decision. Your task is to suggest ONE new factor that they haven't already considered. Make sure to include both a name and detailed description."
         },
         {
           role: "user", 
@@ -218,6 +219,7 @@ export async function suggestNewFactor(decisionType: string, description: string
                    ${existingFactors.join(', ')}
                    
                    Please suggest ONE new important factor I should consider that's not in my list.
+                   IMPORTANT: Include both a clear name AND a detailed description of why this factor is important.
                    Return a JSON object with a single factor including name, description, and suggested weight (1-5).
                    Format: {factor: {name: string, description: string, weight: number}}`
         }

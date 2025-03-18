@@ -110,7 +110,7 @@ export default function CustomDecision() {
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const { showNotification } = useNotification();
   const { user, session } = useAuth();
-  const [activeStep, setActiveStep] = useState<number>(0);
+  const [activeStep, setActiveStep] = useState<number>(1);
   const [activeRatingCell, setActiveRatingCell] = useState<{optionId: string; factorId: string} | null>(null);
   
   // Check for suggestion from previous page
@@ -222,18 +222,37 @@ export default function CustomDecision() {
       if (data.factors && data.factors.length > 0) {
         // Add unique IDs to factors if they don't have them
         const processedFactors = data.factors.map((factor: any, index: number) => ({
-          ...factor,
           id: factor.id || `ai-factor-${index + 1}`,
+          name: factor.name || `Factor ${index + 1}`,
+          weight: factor.weight || 3,
+          description: factor.description || `Important consideration for your ${decisionTitle} decision`
         }));
         
         setFactors(processedFactors);
+        showNotification('Successfully generated criteria for your decision', 'success');
       } else {
-        // Fall back to default factors if AI doesn't return anything useful
+        // Fall back to default factors with meaningful names if AI doesn't return anything useful
+        const defaultFactors = [
+          { id: 'factor1', name: 'Cost', weight: 4, description: 'Financial considerations for this decision' },
+          { id: 'factor2', name: 'Quality', weight: 5, description: 'How good is the option overall' }, 
+          { id: 'factor3', name: 'Convenience', weight: 3, description: 'How easy is it to use or access' },
+          { id: 'factor4', name: 'Long-term value', weight: 4, description: 'Benefits over time' }
+        ];
         setFactors(defaultFactors);
+        showNotification('Using default criteria for your decision', 'info');
       }
     } catch (error) {
       console.error('Error getting AI factor suggestions:', error);
-      showNotification('Could not get AI suggestions. Using default factors instead.', 'error');
+      
+      // Fall back to default factors with meaningful names
+      const defaultFactors = [
+        { id: 'factor1', name: 'Cost', weight: 4, description: 'Financial considerations for this decision' },
+        { id: 'factor2', name: 'Quality', weight: 5, description: 'How good is the option overall' }, 
+        { id: 'factor3', name: 'Convenience', weight: 3, description: 'How easy is it to use or access' },
+        { id: 'factor4', name: 'Long-term value', weight: 4, description: 'Benefits over time' }
+      ];
+      setFactors(defaultFactors);
+      showNotification('Could not get AI suggestions. Using default criteria instead.', 'warning');
     } finally {
       setIsLoadingAI(false);
       setCurrentAiOperation('');
@@ -288,15 +307,38 @@ export default function CustomDecision() {
           id: newId,
           name: data.factor.name,
           weight: data.factor.weight || 3,
-          description: data.factor.description || ''
+          description: data.factor.description || `Important criterion for your ${decisionTitle} decision`
         };
         
         setFactors([...factors, newFactor]);
         showNotification(`Added new factor: ${data.factor.name}`, 'success');
+      } else {
+        // If no valid factor data returned, add a default factor
+        const newId = `factor${factors.length + 1}`;
+        const defaultFactor = {
+          id: newId,
+          name: `Important criterion ${factors.length + 1}`,
+          weight: 3,
+          description: `A factor to consider in your ${decisionTitle} decision`
+        };
+        
+        setFactors([...factors, defaultFactor]);
+        showNotification('Added a default factor', 'info');
       }
     } catch (error) {
       console.error('Error getting AI factor suggestion:', error);
-      showNotification('Could not generate factor. Please add one manually.', 'error');
+      
+      // Even on error, add a default factor
+      const newId = `factor${factors.length + 1}`;
+      const defaultFactor = {
+        id: newId,
+        name: `Important criterion ${factors.length + 1}`,
+        weight: 3,
+        description: `A factor to consider in your ${decisionTitle} decision`
+      };
+      
+      setFactors([...factors, defaultFactor]);
+      showNotification('Could not generate factor. Added a default factor instead.', 'warning');
     } finally {
       setIsLoadingAI(false);
       setCurrentAiOperation('');
@@ -993,11 +1035,45 @@ export default function CustomDecision() {
         if (data.factor.weight) {
           handleWeightChange(factorId, data.factor.weight);
         }
-        showNotification('Criterion updated with AI suggestions', 'success');
+        
+        // Log the response to check if we're getting the data
+        console.log('AI Factor Suggestion:', data.factor);
+        
+        // If no name or description was returned, try setting default values
+        const currentFactor = factors.find(f => f.id === factorId);
+        if (currentFactor && (!currentFactor.name || !currentFactor.description)) {
+          const fallbackName = data.factor.name || "Important criterion";
+          const fallbackDescription = data.factor.description || "A factor to consider in your decision";
+          
+          // Make sure we update these fields regardless
+          handleFactorNameChange(factorId, fallbackName);
+          handleFactorDescriptionChange(factorId, fallbackDescription);
+          
+          showNotification('Criterion updated with AI suggestions', 'success');
+        } else {
+          showNotification('Criterion updated with AI suggestions', 'success');
+        }
+      } else {
+        // If no factor data was returned, use fallback values
+        const fallbackName = "Important criterion";
+        const fallbackDescription = "A factor to consider in your decision";
+        
+        handleFactorNameChange(factorId, fallbackName);
+        handleFactorDescriptionChange(factorId, fallbackDescription);
+        
+        showNotification('Using default criterion values', 'info');
       }
     } catch (error) {
       console.error('Error getting AI criterion suggestion:', error);
-      showNotification('Could not generate criterion. Please add manually.', 'error');
+      
+      // Even if there's an error, provide fallback values
+      const fallbackName = "Important criterion";
+      const fallbackDescription = "A factor to consider in your decision";
+      
+      handleFactorNameChange(factorId, fallbackName);
+      handleFactorDescriptionChange(factorId, fallbackDescription);
+      
+      showNotification('Could not generate criterion. Using default values instead.', 'warning');
     } finally {
       setIsLoadingAI(false);
       setCurrentAiOperation('');
@@ -1292,11 +1368,10 @@ export default function CustomDecision() {
               onClick={() => navigateToStep(1)}
               className={`flex-1 min-w-[80px] text-center py-3 ${activeStep >= 1 ? 'bg-blue-600 text-white' : 'bg-white text-slate-800 border border-slate-300'} hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center rounded-l-md`}
             >
-              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Describe Decision">
-                <title>Describe Decision</title>
+              <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="What are you deciding on?">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              <span className="hidden md:inline truncate font-medium">1. Describe Decision</span>
+              <span className="hidden md:inline truncate font-medium">1. What are you deciding on?</span>
               {activeStep > 1 && (
                 <svg className="w-4 h-4 ml-1 sm:ml-2 flex-shrink-0 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1353,67 +1428,69 @@ export default function CustomDecision() {
             {/* Step 1: Define the decision */}
             {activeStep === 1 && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Describe Your Decision</h2>
-                <div className="mb-6">
-                  <label className="block mb-2 font-semibold text-slate-700">Decision Title</label>
-                  <input 
-                    type="text" 
-                    className={`w-full p-3 border rounded-md text-base ${formErrors.decisionTitle ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                    value={decisionTitle}
-                    onChange={(e) => setDecisionTitle(e.target.value)}
-                    placeholder="What are you deciding on? (e.g., 'Buying a car', 'Choosing a college')"
-                  />
-                  {formErrors.decisionTitle && (
-                    <ValidationMessage message={formErrors.decisionTitle} />
-                  )}
-                </div>
-                
-                <div className="mb-8">
-                  <label className="block mb-2 font-semibold text-slate-700">Description</label>
-                  <textarea 
-                    className="w-full p-3 border border-slate-300 rounded-md h-32 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={decisionDescription}
-                    onChange={(e) => setDecisionDescription(e.target.value)}
-                    placeholder="Provide more details about your decision. What are you trying to achieve? What constraints do you have?"
-                  />
-                </div>
-                
-                <div className="mb-8">
-                  <button
-                    onClick={getAiRefinedDecision}
-                    disabled={isLoadingAI && currentAiOperation === 'refining'}
-                    className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors"
-                  >
-                    {isLoadingAI && currentAiOperation === 'refining' ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Refining with AI...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <span>Refine with AI</span>
-                      </>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">What are you trying to decide on?</h2>
+                <div className="space-y-4">
+                  <div className="mb-6">
+                    <label className="block mb-2 font-semibold text-slate-700">Decision Title</label>
+                    <input 
+                      type="text" 
+                      className={`w-full p-3 border rounded-md text-base ${formErrors.decisionTitle ? 'border-red-500' : 'border-slate-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      value={decisionTitle}
+                      onChange={(e) => setDecisionTitle(e.target.value)}
+                      placeholder="What are you deciding on? (e.g., 'Buying a car', 'Choosing a college')"
+                    />
+                    {formErrors.decisionTitle && (
+                      <ValidationMessage message={formErrors.decisionTitle} />
                     )}
-                  </button>
-                </div>
-                
-                <div className="flex justify-between">
-                  <Link href="/decisions/new" className="px-5 py-3 bg-slate-100 text-slate-700 rounded-md font-medium hover:bg-slate-200 transition-colors">
-                    Cancel
-                  </Link>
-                  <button
-                    className="px-5 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
-                    onClick={goToNextStep}
-                    disabled={!decisionTitle}
-                  >
-                    Next Step
-                  </button>
+                  </div>
+                  
+                  <div className="mb-8">
+                    <label className="block mb-2 font-semibold text-slate-700">Description</label>
+                    <textarea 
+                      className="w-full p-3 border border-slate-300 rounded-md h-32 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={decisionDescription}
+                      onChange={(e) => setDecisionDescription(e.target.value)}
+                      placeholder="Provide more details about your decision. What are you trying to achieve? What constraints do you have?"
+                    />
+                  </div>
+                  
+                  <div className="mb-8">
+                    <button
+                      onClick={getAiRefinedDecision}
+                      disabled={isLoadingAI && currentAiOperation === 'refining'}
+                      className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors"
+                    >
+                      {isLoadingAI && currentAiOperation === 'refining' ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Refining with AI...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          <span>Refine with AI</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Link href="/decisions/new" className="px-5 py-3 bg-slate-100 text-slate-700 rounded-md font-medium hover:bg-slate-200 transition-colors">
+                      Cancel
+                    </Link>
+                    <button
+                      className="px-5 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+                      onClick={goToNextStep}
+                      disabled={!decisionTitle}
+                    >
+                      Next Step
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
