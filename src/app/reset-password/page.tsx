@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useNotification } from '@/components/NotificationContext';
 
-export default function ResetPassword() {
+// Component that uses useSearchParams, wrapped in Suspense in the main component
+function ResetPasswordContent() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -14,6 +15,7 @@ export default function ResetPassword() {
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
   const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null);
+  const [manualToken, setManualToken] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showNotification } = useNotification();
@@ -116,7 +118,7 @@ export default function ResetPassword() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [searchParams, supabase.auth]);
+  }, [searchParams, supabase.auth, showNotification]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -195,9 +197,6 @@ export default function ResetPassword() {
       setIsLoading(false);
     }
   };
-
-  // Special manual token entry form for recovery from direct link
-  const [manualToken, setManualToken] = useState('');
   
   const handleManualTokenSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -364,5 +363,26 @@ export default function ResetPassword() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary for useSearchParams
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col justify-center items-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-bold text-slate-800 mb-2">Decidr</h1>
+            <p className="text-slate-600">Loading reset password...</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-8 flex justify-center">
+            <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   );
 } 
