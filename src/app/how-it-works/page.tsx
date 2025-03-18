@@ -1,17 +1,61 @@
+'use client';
+
 import Link from 'next/link';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { getConsistentUnsplashImage, getDailyUnsplashImage } from '@/lib/unsplashService';
 
 export default function HowItWorks() {
+  // Define image URLs for each step
+  const [imageUrls, setImageUrls] = useState({
+    banner: '',
+    decisionType: '',
+    factorAnalysis: '',
+    optionsAnalysis: '',
+    recommendation: ''
+  });
+
+  useEffect(() => {
+    // Get consistent images for each step to ensure they don't change on rerenders
+    setImageUrls({
+      banner: getDailyUnsplashImage('decision making process brainstorming teamwork', 1920, 600),
+      decisionType: getConsistentUnsplashImage('decision making choice options selection', 800, 600),
+      factorAnalysis: getConsistentUnsplashImage('analysis strategy priority planning', 800, 600),
+      optionsAnalysis: getConsistentUnsplashImage('comparison data analytics visualization', 800, 600),
+      recommendation: getConsistentUnsplashImage('solution recommendation success achievement', 800, 600)
+    });
+  }, []);
+
   return (
     <main className="min-h-screen flex flex-col">
-      <div className="bg-gradient-to-br from-primary-light to-secondary-dark py-16 px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-8">
-            How Decidr Works
-          </h1>
-          <p className="text-xl text-white/80 max-w-2xl mx-auto">
-            Our intelligent decision engine combines AI analysis with your unique 
-            priorities to help you make confident choices.
-          </p>
+      <div className="relative">
+        {/* Banner Image */}
+        {imageUrls.banner ? (
+          <div className="relative h-[400px] w-full">
+            <Image 
+              src={imageUrls.banner} 
+              alt="Decision making process" 
+              fill 
+              priority
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-primary-light/90 to-secondary-dark/80"></div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-br from-primary-light to-secondary-dark h-[400px]"></div>
+        )}
+        
+        {/* Overlaid content */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="max-w-4xl mx-auto text-center px-8">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-8">
+              How Decidr Works
+            </h1>
+            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+              Our intelligent decision engine combines AI analysis with your unique 
+              priorities to help you make confident choices.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -49,12 +93,27 @@ export default function HowItWorks() {
                 </li>
               </ul>
             </div>
-            <div className="glass-card p-8 rounded-xl">
-              <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
-                <div className="h-64 flex items-center justify-center text-gray-400">
-                  [Decision Type Selection UI]
+            <div className="glass-card p-8 rounded-xl overflow-hidden">
+              {imageUrls.decisionType ? (
+                <div className="relative h-64 w-full rounded-lg overflow-hidden">
+                  <Image 
+                    src={imageUrls.decisionType} 
+                    alt="Decision Type Selection Interface" 
+                    fill 
+                    className="object-cover hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                  <div className="absolute bottom-4 left-4 text-white font-medium text-lg">
+                    Decision Type Selection
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    Loading image...
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -63,12 +122,27 @@ export default function HowItWorks() {
       <section className="py-16 px-8 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div className="order-2 md:order-1 glass-card p-8 rounded-xl">
-              <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
-                <div className="h-64 flex items-center justify-center text-gray-400">
-                  [Factor Analysis UI]
+            <div className="order-2 md:order-1 glass-card p-8 rounded-xl overflow-hidden">
+              {imageUrls.factorAnalysis ? (
+                <div className="relative h-64 w-full rounded-lg overflow-hidden">
+                  <Image 
+                    src={imageUrls.factorAnalysis} 
+                    alt="Factor Analysis Interface" 
+                    fill 
+                    className="object-cover hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                  <div className="absolute bottom-4 left-4 text-white font-medium text-lg">
+                    Factor Analysis
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    Loading image...
+                  </div>
+                </div>
+              )}
             </div>
             <div className="order-1 md:order-2">
               <div className="bg-secondary/10 text-secondary font-semibold px-4 py-2 rounded-full inline-block mb-4">
@@ -139,12 +213,27 @@ export default function HowItWorks() {
                 </li>
               </ul>
             </div>
-            <div className="glass-card p-8 rounded-xl">
-              <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
-                <div className="h-64 flex items-center justify-center text-gray-400">
-                  [Options Analysis UI]
+            <div className="glass-card p-8 rounded-xl overflow-hidden">
+              {imageUrls.optionsAnalysis ? (
+                <div className="relative h-64 w-full rounded-lg overflow-hidden">
+                  <Image 
+                    src={imageUrls.optionsAnalysis} 
+                    alt="Options Analysis Interface" 
+                    fill 
+                    className="object-cover hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                  <div className="absolute bottom-4 left-4 text-white font-medium text-lg">
+                    Options Analysis
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    Loading image...
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -153,12 +242,27 @@ export default function HowItWorks() {
       <section className="py-16 px-8 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div className="order-2 md:order-1 glass-card p-8 rounded-xl">
-              <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
-                <div className="h-64 flex items-center justify-center text-gray-400">
-                  [Recommendation UI]
+            <div className="order-2 md:order-1 glass-card p-8 rounded-xl overflow-hidden">
+              {imageUrls.recommendation ? (
+                <div className="relative h-64 w-full rounded-lg overflow-hidden">
+                  <Image 
+                    src={imageUrls.recommendation} 
+                    alt="Recommendation Interface" 
+                    fill 
+                    className="object-cover hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                  <div className="absolute bottom-4 left-4 text-white font-medium text-lg">
+                    Recommendation Dashboard
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-gray-100 rounded-lg p-8 shadow-inner">
+                  <div className="h-64 flex items-center justify-center text-gray-400">
+                    Loading image...
+                  </div>
+                </div>
+              )}
             </div>
             <div className="order-1 md:order-2">
               <div className="bg-secondary/10 text-secondary font-semibold px-4 py-2 rounded-full inline-block mb-4">
