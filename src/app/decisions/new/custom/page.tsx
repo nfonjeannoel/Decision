@@ -603,48 +603,63 @@ export default function CustomDecision() {
   
   // Calculate weighted scores
   const calculateScores = (): Option[] => {
-    return options.map(option => {
-      let totalScore = 0;
-      let maxPossibleScore = 0;
+    // Create a copy of options to avoid mutating the original
+    const scoredOptions = options.map(option => {
+      // Skip calculations if no ratings
+      if (!option.ratings) return { ...option, score: 0, percentageScore: 0 };
+      
+      // Get total factor weight for valid factor IDs
+      const totalFactorWeight = factors.reduce((total, factor) => {
+        return total + factor.weight;
+      }, 0);
+      
+      // Calculate score using weighted average
+      let weightedScore = 0;
       
       factors.forEach(factor => {
-        const rating = option.ratings[factor.id] || 0;
-        totalScore += rating * factor.weight;
-        maxPossibleScore += 5 * factor.weight; // 5 is max rating
+        const rating = option.ratings?.[factor.id] || 0;
+        if (rating > 0) {
+          weightedScore += (rating * factor.weight);
+        }
       });
       
-      const percentageScore = maxPossibleScore > 0 
-        ? (totalScore / maxPossibleScore) * 100 
-        : 0;
+      // Calculate max possible score (5 points * total factor weight)
+      const maxPossibleScore = 5 * totalFactorWeight;
+      
+      // Calculate percentage score (rounded to nearest integer)
+      const percentageScore = Math.round((weightedScore / maxPossibleScore) * 100);
       
       return {
         ...option,
-        totalScore,
-        percentageScore: Math.round(percentageScore),
+        score: weightedScore,
+        percentageScore: percentageScore
       };
     });
+    
+    return scoredOptions;
   };
   
-  // Get the strongest and weakest factors for an option
+  // Get analysis of top strengths and weaknesses
   const getFactorAnalysis = (option: Option) => {
-    if (!option.ratings || Object.keys(option.ratings).length === 0) {
-      return { strongFactors: [], weakFactors: [] };
-    }
+    if (!option || !option.ratings) return { strengths: [], weaknesses: [] };
     
     const factorScores = factors.map(factor => ({
       factor,
-      score: (option.ratings[factor.id] || 0) * factor.weight,
-      maxScore: 5 * factor.weight,
+      rating: option.ratings[factor.id] || 0,
+      weightedScore: (option.ratings[factor.id] || 0) * factor.weight
     }));
     
-    const sortedFactors = [...factorScores].sort((a, b) => 
-      (b.score / b.maxScore) - (a.score / a.maxScore)
-    );
-    
-    return {
-      strongFactors: sortedFactors.slice(0, 2),
-      weakFactors: sortedFactors.slice(-2).reverse(),
-    };
+    // Sort by weighted score (highest first for strengths)
+    const strengths = [...factorScores]
+      .filter(item => item.rating > 3)
+      .sort((a, b) => b.weightedScore - a.weightedScore);
+      
+    // Sort by weighted score (lowest first for weaknesses)
+    const weaknesses = [...factorScores]
+      .filter(item => item.rating < 3 && item.rating > 0)
+      .sort((a, b) => a.weightedScore - b.weightedScore);
+      
+    return { strengths, weaknesses };
   };
   
   // Navigation functions
@@ -1024,55 +1039,57 @@ export default function CustomDecision() {
       
       const data = await response.json();
       
+      // Log the response to verify what's coming from the API
+      console.log('AI Factor Suggestion Response:', data);
+      
+      // Force update with either the AI response or fallback values
+      let factorName, factorDescription, factorWeight;
+      
       if (data.factor) {
-        // Update both name and description of the specified factor
-        if (data.factor.name) {
-          handleFactorNameChange(factorId, data.factor.name);
-        }
-        if (data.factor.description) {
-          handleFactorDescriptionChange(factorId, data.factor.description);
-        }
-        if (data.factor.weight) {
-          handleWeightChange(factorId, data.factor.weight);
-        }
+        // Use AI suggested values or fallbacks
+        factorName = data.factor.name || `Important criterion for ${decisionTitle}`;
+        factorDescription = data.factor.description || `A factor to consider in your ${decisionTitle} decision`;
         
-        // Log the response to check if we're getting the data
-        console.log('AI Factor Suggestion:', data.factor);
-        
-        // If no name or description was returned, try setting default values
+        // Get current factor to access its current weight
         const currentFactor = factors.find(f => f.id === factorId);
-        if (currentFactor && (!currentFactor.name || !currentFactor.description)) {
-          const fallbackName = data.factor.name || "Important criterion";
-          const fallbackDescription = data.factor.description || "A factor to consider in your decision";
-          
-          // Make sure we update these fields regardless
-          handleFactorNameChange(factorId, fallbackName);
-          handleFactorDescriptionChange(factorId, fallbackDescription);
-          
-          showNotification('Criterion updated with AI suggestions', 'success');
-        } else {
-          showNotification('Criterion updated with AI suggestions', 'success');
-        }
+        factorWeight = data.factor.weight || (currentFactor ? currentFactor.weight : 3);
       } else {
-        // If no factor data was returned, use fallback values
-        const fallbackName = "Important criterion";
-        const fallbackDescription = "A factor to consider in your decision";
+        // Use fallback values if no AI data
+        factorName = `Important criterion for ${decisionTitle}`;
+        factorDescription = `A factor to consider in your ${decisionTitle} decision`;
         
-        handleFactorNameChange(factorId, fallbackName);
-        handleFactorDescriptionChange(factorId, fallbackDescription);
-        
-        showNotification('Using default criterion values', 'info');
+        // Get current factor to access its current weight
+        const currentFactor = factors.find(f => f.id === factorId);
+        factorWeight = currentFactor ? currentFactor.weight : 3;
       }
+      
+      // Create a new factors array with the updated factor
+      const updatedFactors = factors.map(factor => 
+        factor.id === factorId 
+          ? { ...factor, name: factorName, description: factorDescription, weight: factorWeight } 
+          : factor
+      );
+      
+      // Update state directly with the new array
+      setFactors(updatedFactors);
+      showNotification('Criterion updated with AI suggestions', 'success');
+      
     } catch (error) {
       console.error('Error getting AI criterion suggestion:', error);
       
       // Even if there's an error, provide fallback values
-      const fallbackName = "Important criterion";
-      const fallbackDescription = "A factor to consider in your decision";
+      const fallbackName = `Important criterion for ${decisionTitle}`;
+      const fallbackDescription = `A factor to consider in your ${decisionTitle} decision`;
       
-      handleFactorNameChange(factorId, fallbackName);
-      handleFactorDescriptionChange(factorId, fallbackDescription);
+      // Create a new factors array with the fallback values
+      const updatedFactors = factors.map(factor => 
+        factor.id === factorId 
+          ? { ...factor, name: fallbackName, description: fallbackDescription } 
+          : factor
+      );
       
+      // Update state directly with the new array
+      setFactors(updatedFactors);
       showNotification('Could not generate criterion. Using default values instead.', 'warning');
     } finally {
       setIsLoadingAI(false);
@@ -1250,11 +1267,8 @@ export default function CustomDecision() {
   
   // Simplify check for option ratings
   const hasCompleteRatings = (option: Option) => {
-    return option.ratings && 
-           factors.every(factor => 
-             typeof option.ratings![factor.id] === 'number' && 
-             option.ratings![factor.id] > 0
-           );
+    if (!option || !option.ratings) return false;
+    return factors.every(factor => Object.keys(option.ratings).includes(factor.id));
   };
   
   return (
@@ -1417,7 +1431,7 @@ export default function CustomDecision() {
             >
               <svg className="w-5 h-5 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Get Recommendation">
                 <title>Get Recommendation</title>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2m0 0V9a2 2 0 012-2h2a2 2 0 012 2m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <span className="hidden md:inline truncate font-medium">4. Get Recommendation</span>
             </button>
@@ -1696,38 +1710,9 @@ export default function CustomDecision() {
                                 <option value="4">4 - Good</option>
                                 <option value="5">5 - Great</option>
                               </select>
-                              <FieldAIButton 
-                                onClick={() => getAiSuggestedRating(option.id, factor.id)}
-                                isLoading={isLoadingAI && currentAiOperation === `rating-${option.id}-${factor.id}`}
-                                tooltip="Rate"
-                                showLabel={true}
-                              />
                             </div>
                           </div>
                         ))}
-                        
-                        <button
-                          onClick={() => getAiSuggestedOptionRatings(option.id)}
-                          disabled={isLoadingAI && currentAiOperation === `ratings-${option.id}`}
-                          className="w-full mt-3 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors"
-                        >
-                          {isLoadingAI && currentAiOperation === `ratings-${option.id}` ? (
-                            <>
-                              <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>Rating option...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                              </svg>
-                              <span>Rate this option with AI</span>
-                            </>
-                          )}
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -1767,29 +1752,6 @@ export default function CustomDecision() {
                                 </button>
                               )}
                             </div>
-                            
-                            <button
-                              onClick={() => getAiSuggestedOptionRatings(option.id)}
-                              disabled={isLoadingAI && currentAiOperation === `ratings-${option.id}`}
-                              className="w-full mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-md flex items-center justify-center transition-colors text-sm"
-                            >
-                              {isLoadingAI && currentAiOperation === `ratings-${option.id}` ? (
-                                <>
-                                  <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span>Rating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                  </svg>
-                                  <span>Rate this option with AI</span>
-                                </>
-                              )}
-                            </button>
                           </th>
                         ))}
                       </tr>
@@ -1819,12 +1781,6 @@ export default function CustomDecision() {
                                   <option value="4">4 - Good</option>
                                   <option value="5">5 - Great</option>
                                 </select>
-                                <FieldAIButton 
-                                  onClick={() => getAiSuggestedRating(option.id, factor.id)}
-                                  isLoading={isLoadingAI && currentAiOperation === `rating-${option.id}-${factor.id}`}
-                                  tooltip="Rate"
-                                  showLabel={true}
-                                />
                               </div>
                             </td>
                           ))}
@@ -1879,10 +1835,10 @@ export default function CustomDecision() {
                   >
                     Back
                   </button>
-                  <div className="flex space-x-3">
+                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3">
                     {user ? (
                       <button 
-                        className="px-5 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors"
+                        className="w-full px-5 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors text-sm sm:text-base"
                         onClick={saveDecision}
                         disabled={isLoadingAI && currentAiOperation === 'saving'}
                       >
@@ -1899,14 +1855,14 @@ export default function CustomDecision() {
                     ) : (
                       <Link 
                         href="/login" 
-                        className="px-5 py-3 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors"
+                        className="w-full text-center px-5 py-3 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors text-sm sm:text-base"
                         onClick={storePendingDecision}
                       >
                         Log in to Save
                       </Link>
                     )}
                     <button
-                      className="px-5 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+                      className="w-full px-5 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed text-sm sm:text-base"
                       onClick={goToNextStep}
                     >
                       Next Step
@@ -1969,7 +1925,7 @@ export default function CustomDecision() {
                   <h3 className="text-xl font-bold mb-4 text-slate-800">All Options Compared</h3>
                   
                   {scoredOptions.map((option, index) => {
-                    const { strongFactors, weakFactors } = getFactorAnalysis(option);
+                    const { strengths, weaknesses } = getFactorAnalysis(option);
                     
                     return (
                       <div key={option.id} className="mb-6 p-5 border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
@@ -1991,21 +1947,29 @@ export default function CustomDecision() {
                           <div className="flex-1">
                             <h5 className="font-semibold text-green-600 mb-2">Strengths:</h5>
                             <ul className="list-disc pl-5 text-sm sm:text-base text-slate-700">
-                              {strongFactors.map(({ factor, score, maxScore }) => (
-                                <li key={factor.id} className="mb-1">
-                                  {factor.name}: {score}/{maxScore} ({Math.round((score/maxScore) * 100)}%)
-                                </li>
-                              ))}
+                              {strengths.length > 0 ? (
+                                strengths.map(item => (
+                                  <li key={item.factor.id} className="mb-1">
+                                    {item.factor.name}: {item.rating}/5 ({Math.round((item.weightedScore / (5 * item.factor.weight)) * 100)}%)
+                                  </li>
+                                ))
+                              ) : (
+                                <li>No notable strengths identified</li>
+                              )}
                             </ul>
                           </div>
                           <div className="flex-1">
                             <h5 className="font-semibold text-red-600 mb-2">Weaknesses:</h5>
                             <ul className="list-disc pl-5 text-sm sm:text-base text-slate-700">
-                              {weakFactors.map(({ factor, score, maxScore }) => (
-                                <li key={factor.id} className="mb-1">
-                                  {factor.name}: {score}/{maxScore} ({Math.round((score/maxScore) * 100)}%)
-                                </li>
-                              ))}
+                              {weaknesses.length > 0 ? (
+                                weaknesses.map(item => (
+                                  <li key={item.factor.id} className="mb-1">
+                                    {item.factor.name}: {item.rating}/5 ({Math.round((item.weightedScore / (5 * item.factor.weight)) * 100)}%)
+                                  </li>
+                                ))
+                              ) : (
+                                <li>No notable weaknesses identified</li>
+                              )}
                             </ul>
                           </div>
                         </div>
