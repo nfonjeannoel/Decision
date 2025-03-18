@@ -1,8 +1,110 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect, useRef } from 'react';
 
 export default function Home() {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+  const [autoScrollActive, setAutoScrollActive] = useState(true);
+  const [touchStartX, setTouchStartX] = useState(0);
+
+  // Function to handle scrolling left
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -260, behavior: 'smooth' });
+    }
+  };
+
+  // Function to handle scrolling right
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 260, behavior: 'smooth' });
+    }
+  };
+
+  // Monitor scroll position to show/hide arrows
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = container;
+      setShowLeftArrow(scrollLeft > 20);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 20);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll carousel functionality
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !autoScrollActive) return;
+
+    let timeoutId: NodeJS.Timeout;
+    let direction = 1; // 1 for right, -1 for left
+    let scrollInterval: NodeJS.Timeout;
+
+    const startAutoScroll = () => {
+      scrollInterval = setInterval(() => {
+        const { scrollLeft, scrollWidth, clientWidth } = container;
+        
+        // Change direction when reaching the end
+        if (scrollLeft >= scrollWidth - clientWidth - 20) {
+          direction = -1;
+        } else if (scrollLeft <= 20) {
+          direction = 1;
+        }
+        
+        container.scrollBy({ left: 2 * direction, behavior: 'auto' });
+      }, 50);
+    };
+
+    // Start after a delay
+    timeoutId = setTimeout(startAutoScroll, 2000);
+
+    // Stop auto-scroll on user interaction
+    const stopAutoScroll = () => {
+      clearInterval(scrollInterval);
+      clearTimeout(timeoutId);
+      setAutoScrollActive(false);
+    };
+
+    container.addEventListener('mousedown', stopAutoScroll);
+    container.addEventListener('touchstart', stopAutoScroll);
+
+    return () => {
+      clearInterval(scrollInterval);
+      clearTimeout(timeoutId);
+      container.removeEventListener('mousedown', stopAutoScroll);
+      container.removeEventListener('touchstart', stopAutoScroll);
+    };
+  }, [autoScrollActive]);
+
+  // Handle touch events for better mobile interaction
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    
+    // If it was a significant swipe
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        // Swipe left, scroll right
+        scrollRight();
+      } else {
+        // Swipe right, scroll left
+        scrollLeft();
+      }
+    }
+  };
+
   return (
     <main className="min-h-screen flex flex-col">
       {/* Hero Section */}
@@ -57,60 +159,103 @@ export default function Home() {
           </p>
           
           {/* Features cards for mobile (swipeable horizontal scroll) */}
-          <div className="md:hidden flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory scrollbar-hide">
-            {/* Feature 1 */}
-            <div className="glass-card p-5 snap-center min-w-[85%] first:ml-4 last:mr-4 flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary-purple to-primary-indigo rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-6 h-6 text-white"
-                >
-                  <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z" />
-                </svg>
+          <div className="md:hidden relative">
+            <div 
+              className="flex overflow-x-auto pb-4 gap-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4"
+              ref={scrollContainerRef}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              style={{ scrollBehavior: 'smooth' }}
+            >
+              {/* Feature 1 */}
+              <div className="glass-card p-5 snap-center min-w-[80%] max-w-[80%] flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
+                <div className="w-12 h-12 bg-gradient-to-br from-primary-purple to-primary-indigo rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="w-6 h-6 text-white"
+                  >
+                    <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-primary-purple">Identify What Matters</h3>
+                <p className="text-gray-600 text-sm">
+                  Discover the factors that are most important for your specific decision.
+                </p>
               </div>
-              <h3 className="text-lg font-semibold mb-2 text-primary-purple">Identify What Matters</h3>
-              <p className="text-gray-600 text-sm">
-                Discover the factors that are most important for your specific decision.
-              </p>
+              
+              {/* Feature 2 */}
+              <div className="glass-card p-5 snap-center min-w-[80%] max-w-[80%] flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
+                <div className="w-12 h-12 bg-gradient-to-br from-primary-indigo to-primary-teal rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="w-6 h-6 text-white"
+                  >
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+                    <path d="M7 12h2v5H7zm4-7h2v12h-2zm4 4h2v8h-2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-primary-indigo">Analyze Options</h3>
+                <p className="text-gray-600 text-sm">
+                  Compare alternatives side-by-side with smart visualizations and insights.
+                </p>
+              </div>
+              
+              {/* Feature 3 */}
+              <div className="glass-card p-5 snap-center min-w-[80%] max-w-[80%] flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
+                <div className="w-12 h-12 bg-gradient-to-br from-primary-teal to-secondary rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="w-6 h-6 text-white"
+                  >
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-primary-teal">Get Clarity</h3>
+                <p className="text-gray-600 text-sm">
+                  Receive personalized recommendations with clear explanations.
+                </p>
+              </div>
             </div>
             
-            {/* Feature 2 */}
-            <div className="glass-card p-5 snap-center min-w-[85%] flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary-indigo to-primary-teal rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-6 h-6 text-white"
-                >
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
-                  <path d="M7 12h2v5H7zm4-7h2v12h-2zm4 4h2v8h-2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold mb-2 text-primary-indigo">Analyze Options</h3>
-              <p className="text-gray-600 text-sm">
-                Compare alternatives side-by-side with smart visualizations and insights.
-              </p>
+            {/* Scroll indicators */}
+            <div className="flex justify-center mt-2 space-x-2">
+              <div className="w-2 h-2 rounded-full bg-primary-purple/30"></div>
+              <div className="w-2 h-2 rounded-full bg-primary-indigo/30"></div>
+              <div className="w-2 h-2 rounded-full bg-primary-teal/30"></div>
             </div>
             
-            {/* Feature 3 */}
-            <div className="glass-card p-5 snap-center min-w-[85%] last:mr-4 flex-shrink-0 hover:shadow-glow transition-all duration-500 group">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary-teal to-secondary rounded-full flex items-center justify-center mb-4 group-hover:shadow-glow transition-all duration-500">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-6 h-6 text-white"
-                >
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold mb-2 text-primary-teal">Get Clarity</h3>
-              <p className="text-gray-600 text-sm">
-                Receive personalized recommendations with clear explanations.
-              </p>
+            {/* Navigation arrows */}
+            <button 
+              onClick={scrollLeft}
+              className={`absolute left-0 top-1/2 transform -translate-y-1/2 bg-white/80 rounded-r-lg p-2 shadow-md z-10 transition-opacity duration-300 ${showLeftArrow ? 'opacity-70' : 'opacity-0 pointer-events-none'} hover:opacity-100`}
+              aria-label="Scroll left"
+            >
+              <svg className="w-5 h-5 text-primary-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button 
+              onClick={scrollRight}
+              className={`absolute right-0 top-1/2 transform -translate-y-1/2 bg-white/80 rounded-l-lg p-2 shadow-md z-10 transition-opacity duration-300 ${showRightArrow ? 'opacity-70' : 'opacity-0 pointer-events-none'} hover:opacity-100`}
+              aria-label="Scroll right"
+            >
+              <svg className="w-5 h-5 text-primary-indigo" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            
+            {/* Scroll hint animation - shows briefly on first load */}
+            <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-pulse pointer-events-none flex items-center text-xs text-gray-600 opacity-70">
+              <span className="mr-1">Swipe</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
             </div>
           </div>
           

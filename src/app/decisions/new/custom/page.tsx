@@ -908,9 +908,31 @@ export default function CustomDecision() {
               <h1 className="text-3xl font-bold">Decidr</h1>
               <p className="text-slate-300 mt-1">Clarity when it matters most</p>
             </div>
-            <div className="flex items-center space-x-4">
+            
+            {/* Mobile optimized authentication - shown above breadcrumb on mobile */}
+            <div className="sm:hidden mb-4">
+              {user ? (
+                <div className="flex items-center bg-slate-800 px-3 py-2 rounded-md">
+                  <div className="mr-2 w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">
+                    {user.email?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  <div className="text-sm">
+                    <p className="font-medium truncate max-w-[120px]">{user.email}</p>
+                    <Link href="/api/auth/signout" className="text-xs text-slate-400 hover:text-white">
+                      Sign out
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <Link href="/login" className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-all font-medium text-sm">
+                  Log in
+                </Link>
+              )}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
               <nav className="flex" aria-label="Breadcrumb">
-                <ol className="flex items-center space-x-2 text-xs sm:text-sm overflow-x-auto">
+                <ol className="flex items-center space-x-2 text-xs sm:text-sm overflow-x-auto scrollbar-hide">
                   <li>
                     <Link href="/" className="text-slate-300 hover:text-white whitespace-nowrap">Home</Link>
                   </li>
@@ -933,23 +955,26 @@ export default function CustomDecision() {
                 </ol>
               </nav>
               
-              {user ? (
-                <div className="flex items-center bg-slate-800 px-4 py-2 rounded-md">
-                  <div className="mr-2 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">
-                    {user.email?.charAt(0).toUpperCase() || 'U'}
+              {/* Desktop authentication - hidden on mobile */}
+              <div className="hidden sm:block">
+                {user ? (
+                  <div className="flex items-center bg-slate-800 px-4 py-2 rounded-md">
+                    <div className="mr-2 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">
+                      {user.email?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div className="text-sm">
+                      <p className="font-medium">{user.email}</p>
+                      <Link href="/api/auth/signout" className="text-xs text-slate-400 hover:text-white">
+                        Sign out
+                      </Link>
+                    </div>
                   </div>
-                  <div className="text-sm">
-                    <p className="font-medium">{user.email}</p>
-                    <Link href="/api/auth/signout" className="text-xs text-slate-400 hover:text-white">
-                      Sign out
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <Link href="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-all font-medium">
-                  Log in
-                </Link>
-              )}
+                ) : (
+                  <Link href="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-all font-medium">
+                    Log in
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
