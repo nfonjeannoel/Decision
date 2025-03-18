@@ -89,6 +89,14 @@ export default function Login() {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-8">
+          {error && (
+            <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-md text-sm">
+              {error === 'Invalid login credentials' 
+                ? 'Invalid email or password. Please try again.'
+                : error}
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">

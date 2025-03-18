@@ -54,6 +54,19 @@ export default function Signup() {
     setIsLoading(true);
     setError('');
 
+    // Form validation
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Use context's signUp function
       const { error, success } = await signUp(email, password);
@@ -92,7 +105,12 @@ export default function Signup() {
       }
     } catch (error) {
       console.error('Signup error:', error);
-      setError((error as Error).message);
+      // Format user-friendly error message
+      if ((error as Error).message.includes('email already registered')) {
+        setError('This email is already registered. Please use a different email or login instead.');
+      } else {
+        setError((error as Error).message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +130,12 @@ export default function Signup() {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-8">
+          {error && (
+            <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
