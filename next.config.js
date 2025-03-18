@@ -5,6 +5,9 @@ const nextConfig = {
     // Dangerously allow type errors to compile for deployment
     ignoreBuildErrors: true,
   },
+  images: {
+    domains: ['source.unsplash.com'],
+  },
 }
 
 module.exports = nextConfig 
