@@ -56,89 +56,51 @@ interface TagCloudProps {
   onSelect: (text: string) => void;
 }
 
-const AnimatedTagCloud = ({ suggestions, onSelect }: TagCloudProps) => {
-  // Track positions and movement for each tag
-  const [positions, setPositions] = useState<Position[]>([]);
+const ModernSuggestionCloud = ({ suggestions, onSelect }: TagCloudProps) => {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   
-  // Initialize random positions on component mount
-  useEffect(() => {
-    const newPositions: Position[] = suggestions.map(suggestion => ({
-      id: suggestion.id,
-      x: Math.random() * 80, // Percentage of container width
-      y: Math.random() * 80, // Percentage of container height
-      vx: (Math.random() - 0.5) * 0.5, // Velocity X
-      vy: (Math.random() - 0.5) * 0.5, // Velocity Y
-    }));
-    
-    setPositions(newPositions);
-    
-    // Animation frame for movement
-    const animationInterval = setInterval(() => {
-      setPositions(prevPositions => {
-        return prevPositions.map(pos => {
-          // Bounce off the edges
-          let newX = pos.x + pos.vx;
-          let newY = pos.y + pos.vy;
-          let newVx = pos.vx;
-          let newVy = pos.vy;
-          
-          if (newX < 0 || newX > 85) newVx = -pos.vx;
-          if (newY < 0 || newY > 85) newVy = -pos.vy;
-          
-          return {
-            ...pos,
-            x: newX < 0 ? 0 : newX > 85 ? 85 : newX,
-            y: newY < 0 ? 0 : newY > 85 ? 85 : newY,
-            vx: newVx,
-            vy: newVy,
-          };
-        });
-      });
-    }, 50);
-    
-    return () => clearInterval(animationInterval);
-  }, [suggestions]);
-  
-  // Get font size based on tag size category
-  const getFontSize = (size: 'small' | 'medium' | 'large'): string => {
-    switch (size) {
-      case 'large': return 'text-xl md:text-2xl';
-      case 'medium': return 'text-lg md:text-xl';
-      case 'small': return 'text-base md:text-lg';
-      default: return 'text-lg';
-    }
-  };
-  
   return (
-    <div className="relative h-[300px] sm:h-[400px] w-full mb-8 mt-8 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 p-4 shadow-inner">
-      {positions.map((position, index) => {
-        const suggestion: Suggestion = suggestions[index];
-        const isHovered = hoveredId === suggestion.id;
-        
-        return (
-          <button
-            key={suggestion.id}
-            className={`absolute transform -translate-x-1/2 -translate-y-1/2 ${getFontSize(suggestion.size)} 
-                       font-medium transition-all duration-300 
-                       ${isHovered ? 'text-primary-indigo scale-110 z-10' : 'text-gray-700 hover:text-primary-purple'}
-                       cursor-pointer select-none`}
-            style={{
-              left: `${position.x}%`,
-              top: `${position.y}%`,
-              textShadow: isHovered ? '0 0 10px rgba(99, 102, 241, 0.3)' : 'none',
-            }}
-            onClick={() => onSelect(suggestion.text)}
-            onMouseEnter={() => setHoveredId(suggestion.id)}
-            onMouseLeave={() => setHoveredId(null)}
-          >
-            {suggestion.text}
-          </button>
-        );
-      })}
-      
-      <div className="absolute bottom-4 right-4 text-xs text-gray-500">
-        Click any suggestion to use it
+    <div className="w-full mb-8 mt-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {suggestions.map((suggestion) => {
+          const isHovered = hoveredId === suggestion.id;
+          let bgColor = "from-indigo-50 to-purple-50";
+          let textColor = "text-slate-700";
+          
+          // Assign different gradient colors based on suggestion size
+          if (suggestion.size === 'large') {
+            bgColor = "from-indigo-50 to-purple-100";
+          } else if (suggestion.size === 'medium') {
+            bgColor = "from-blue-50 to-indigo-100";
+          } else {
+            bgColor = "from-violet-50 to-indigo-50";
+          }
+          
+          return (
+            <button
+              key={suggestion.id}
+              className={`relative rounded-xl p-4 transition-all duration-300 flex items-center justify-center shadow-sm
+                         ${isHovered ? 'shadow-md transform scale-105' : 'hover:shadow-md hover:scale-102'}
+                         bg-gradient-to-br ${bgColor} overflow-hidden
+                         aspect-[4/3] border border-white/50`}
+              onClick={() => onSelect(suggestion.text)}
+              onMouseEnter={() => setHoveredId(suggestion.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              {/* Background pattern for visual interest */}
+              <div className="absolute top-0 right-0 w-12 h-12 rounded-full bg-white/30 -translate-y-6 translate-x-6"></div>
+              <div className="absolute bottom-0 left-0 w-8 h-8 rounded-full bg-white/30 translate-y-4 -translate-x-4"></div>
+              
+              {/* Text content */}
+              <span className={`font-medium ${textColor} text-center`}>
+                {suggestion.text}
+              </span>
+              
+              {/* Subtle hover indicator */}
+              <div className={`absolute bottom-2 h-1 rounded-full bg-indigo-400 left-1/2 transform -translate-x-1/2 transition-all duration-300 ${isHovered ? 'w-10 opacity-100' : 'w-5 opacity-0'}`}></div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -148,7 +110,7 @@ export default function NewDecision() {
   const router = useRouter();
   
   // Handle selection of a suggestion
-  const handleSuggestionSelect = (suggestion) => {
+  const handleSuggestionSelect = (suggestion: string) => {
     // Store the selection in local storage for the next page to use
     localStorage.setItem('decisionSuggestion', suggestion);
     // Navigate to the custom decision page
@@ -192,19 +154,27 @@ export default function NewDecision() {
       </div>
 
       <section className="py-16 px-8 bg-gradient-to-br from-gray-50 to-gray-100 flex-1">
-        <div className="max-w-3xl mx-auto">
-          {/* Animated tag cloud */}
-          <div className="mb-12 text-center">
-            <h2 className="text-2xl font-bold mb-3 text-gray-800">
-              Looking for inspiration?
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Click on any suggestion below to start your decision process
-            </p>
-            <AnimatedTagCloud 
-              suggestions={decisionSuggestions}
-              onSelect={handleSuggestionSelect}
-            />
+        <div className="max-w-4xl mx-auto">
+          {/* Inspiration section with modern card-based cloud */}
+          <div className="mb-12">
+            <div className="glass-card p-8 rounded-xl shadow-md">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl font-bold mb-3 text-gray-800 inline-flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  Looking for inspiration?
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Click on any suggestion below to jump-start your decision process
+                </p>
+              </div>
+              
+              <ModernSuggestionCloud 
+                suggestions={decisionSuggestions}
+                onSelect={handleSuggestionSelect}
+              />
+            </div>
           </div>
           
           <Link 
