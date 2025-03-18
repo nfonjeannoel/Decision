@@ -60,6 +60,24 @@ export default function CustomDecision() {
   const { showNotification } = useNotification();
   const { user, session } = useAuth();
   
+  // Check for suggestion from previous page
+  useEffect(() => {
+    // Check if we have a saved suggestion in localStorage
+    const savedSuggestion = typeof window !== 'undefined' ? localStorage.getItem('decisionSuggestion') : null;
+    
+    if (savedSuggestion) {
+      // Set the decision title and generate a description
+      setDecisionTitle(savedSuggestion);
+      setDecisionDescription(`Making a decision about: ${savedSuggestion}`);
+      
+      // Clear the localStorage item to avoid persisting it between sessions
+      localStorage.removeItem('decisionSuggestion');
+      
+      // Show a notification
+      showNotification(`Loaded suggestion: ${savedSuggestion}`, 'info');
+    }
+  }, []); // Empty dependency array ensures this runs only once on component mount
+  
   // Request to refine decision title and description
   const getAiRefinedDecision = async () => {
     if (!decisionTitle) {

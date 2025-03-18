@@ -1,6 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+// Suggestion cloud data with common decision types
+const decisionSuggestions: Suggestion[] = [
+  { id: 1, text: 'Career Change', size: 'large' },
+  { id: 2, text: 'Home Purchase', size: 'medium' },
+  { id: 3, text: 'Job Offer', size: 'large' },
+  { id: 4, text: 'Investment Option', size: 'medium' },
+  { id: 5, text: 'Education Path', size: 'large' },
+  { id: 6, text: 'Vacation Planning', size: 'small' },
+  { id: 7, text: 'Business Strategy', size: 'medium' },
+  { id: 8, text: 'Technology Adoption', size: 'small' },
+  { id: 9, text: 'Vehicle Purchase', size: 'medium' },
+  { id: 10, text: 'Relocation', size: 'large' },
+  { id: 11, text: 'Wedding Planning', size: 'small' },
+  { id: 12, text: 'Medical Treatment', size: 'medium' },
+  { id: 13, text: 'Software Selection', size: 'small' },
+  { id: 14, text: 'Hiring Decision', size: 'medium' },
+  { id: 15, text: 'Retirement Planning', size: 'medium' },
+];
 
 const customDecision = {
   id: 'custom',
@@ -14,7 +35,126 @@ const customDecision = {
   ),
 };
 
+// Tag cloud component that animates and allows selection
+// Define proper types for the component props
+interface Suggestion {
+  id: number;
+  text: string;
+  size: 'small' | 'medium' | 'large';
+}
+
+interface Position {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+
+interface TagCloudProps {
+  suggestions: Suggestion[];
+  onSelect: (text: string) => void;
+}
+
+const AnimatedTagCloud = ({ suggestions, onSelect }: TagCloudProps) => {
+  // Track positions and movement for each tag
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  
+  // Initialize random positions on component mount
+  useEffect(() => {
+    const newPositions: Position[] = suggestions.map(suggestion => ({
+      id: suggestion.id,
+      x: Math.random() * 80, // Percentage of container width
+      y: Math.random() * 80, // Percentage of container height
+      vx: (Math.random() - 0.5) * 0.5, // Velocity X
+      vy: (Math.random() - 0.5) * 0.5, // Velocity Y
+    }));
+    
+    setPositions(newPositions);
+    
+    // Animation frame for movement
+    const animationInterval = setInterval(() => {
+      setPositions(prevPositions => {
+        return prevPositions.map(pos => {
+          // Bounce off the edges
+          let newX = pos.x + pos.vx;
+          let newY = pos.y + pos.vy;
+          let newVx = pos.vx;
+          let newVy = pos.vy;
+          
+          if (newX < 0 || newX > 85) newVx = -pos.vx;
+          if (newY < 0 || newY > 85) newVy = -pos.vy;
+          
+          return {
+            ...pos,
+            x: newX < 0 ? 0 : newX > 85 ? 85 : newX,
+            y: newY < 0 ? 0 : newY > 85 ? 85 : newY,
+            vx: newVx,
+            vy: newVy,
+          };
+        });
+      });
+    }, 50);
+    
+    return () => clearInterval(animationInterval);
+  }, [suggestions]);
+  
+  // Get font size based on tag size category
+  const getFontSize = (size: 'small' | 'medium' | 'large'): string => {
+    switch (size) {
+      case 'large': return 'text-xl md:text-2xl';
+      case 'medium': return 'text-lg md:text-xl';
+      case 'small': return 'text-base md:text-lg';
+      default: return 'text-lg';
+    }
+  };
+  
+  return (
+    <div className="relative h-[300px] sm:h-[400px] w-full mb-8 mt-8 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 p-4 shadow-inner">
+      {positions.map((position, index) => {
+        const suggestion: Suggestion = suggestions[index];
+        const isHovered = hoveredId === suggestion.id;
+        
+        return (
+          <button
+            key={suggestion.id}
+            className={`absolute transform -translate-x-1/2 -translate-y-1/2 ${getFontSize(suggestion.size)} 
+                       font-medium transition-all duration-300 
+                       ${isHovered ? 'text-primary-indigo scale-110 z-10' : 'text-gray-700 hover:text-primary-purple'}
+                       cursor-pointer select-none`}
+            style={{
+              left: `${position.x}%`,
+              top: `${position.y}%`,
+              textShadow: isHovered ? '0 0 10px rgba(99, 102, 241, 0.3)' : 'none',
+            }}
+            onClick={() => onSelect(suggestion.text)}
+            onMouseEnter={() => setHoveredId(suggestion.id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            {suggestion.text}
+          </button>
+        );
+      })}
+      
+      <div className="absolute bottom-4 right-4 text-xs text-gray-500">
+        Click any suggestion to use it
+      </div>
+    </div>
+  );
+};
+
 export default function NewDecision() {
+  const router = useRouter();
+  
+  // Handle selection of a suggestion
+  const handleSuggestionSelect = (suggestion) => {
+    // Store the selection in local storage for the next page to use
+    localStorage.setItem('decisionSuggestion', suggestion);
+    // Navigate to the custom decision page
+    router.push('/decisions/new/custom');
+  };
+  
   return (
     <>
       {/* Breadcrumb Navigation */}
@@ -53,6 +193,20 @@ export default function NewDecision() {
 
       <section className="py-16 px-8 bg-gradient-to-br from-gray-50 to-gray-100 flex-1">
         <div className="max-w-3xl mx-auto">
+          {/* Animated tag cloud */}
+          <div className="mb-12 text-center">
+            <h2 className="text-2xl font-bold mb-3 text-gray-800">
+              Looking for inspiration?
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Click on any suggestion below to start your decision process
+            </p>
+            <AnimatedTagCloud 
+              suggestions={decisionSuggestions}
+              onSelect={handleSuggestionSelect}
+            />
+          </div>
+          
           <Link 
             href={`/decisions/new/${customDecision.id}`}
             className="glass-card p-12 rounded-xl hover:shadow-xl transition-all duration-300 hover:shadow-glow flex flex-col items-center text-center"
